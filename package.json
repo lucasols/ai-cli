@@ -1,0 +1,47 @@
+{
+  "name": "@ls-stack/ai-cli",
+  "version": "0.0.1",
+  "license": "MIT",
+  "scripts": {
+    "lint": "pnpm tsc && pnpm eslint && pnpm format",
+    "tsc": "tsc -p tsconfig.prod.json",
+    "tsc:watch": "tsc -p tsconfig.prod.json --watch",
+    "format": "prettier src/ --write  --list-different",
+    "test": "vitest run",
+    "eslint": "eslint src/",
+    "test:ui": "vitest --ui",
+    "build": "pnpm test && pnpm lint && pnpm run build:no-test",
+    "build:no-test": "tsdown",
+    "build:watch": "tsdown --watch",
+    "pre-publish": "./scripts/check-if-is-sync.sh && pnpm build",
+    "npm-publish": "pnpm publish --access=public"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "repository": "github:lucaslos/ai-cli",
+  "author": "Lucas Santos",
+  "main": "./dist/main.js",
+  "engines": {
+    "node": ">=23.0.0"
+  },
+  "devDependencies": {
+    "@ls-stack/eslint-cfg": "^0.1.3",
+    "@types/node": "^24.3.0",
+    "@vitest/ui": "^3.2.4",
+    "eslint": "^9.33.0",
+    "fetch-mock": "^12.5.3",
+    "prettier": "^3.6.2",
+    "tsdown": "^0.14.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.2",
+    "vitest": "^3.2.4",
+    "zod": "^4.0.17"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@ls-stack/utils": "^3.34.1",
+    "t-result": "^0.6.1"
+  }
+}
