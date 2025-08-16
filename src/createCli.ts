@@ -20,6 +20,10 @@ type Cmd = {
   description: string;
   run: (...args: any[]) => Promise<void> | void;
   args?: Record<string, Arg>;
+  examples?: {
+    args: string[];
+    description: string;
+  }[];
 };
 
 type PositionalArg = {
@@ -70,6 +74,7 @@ export function createCmd<Args extends undefined | Record<string, Arg>>({
   description,
   run,
   args,
+  examples,
 }: {
   short?: string;
   description: string;
@@ -77,12 +82,17 @@ export function createCmd<Args extends undefined | Record<string, Arg>>({
   run: (cmdArgs: {
     [K in keyof Args]: Args[K] extends Arg ? GetArgType<Args[K]> : never;
   }) => Promise<void> | void;
+  examples?: {
+    args: string[];
+    description: string;
+  }[];
 }) {
   return {
     short,
     description,
     run,
     args,
+    examples,
   };
 }
 
