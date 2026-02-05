@@ -1,25 +1,32 @@
-import path from 'path';
-import { writeFile } from 'fs/promises';
-import { createCmd, cliInput } from '@ls-stack/cli';
+import { cliInput, createCmd } from '@ls-stack/cli';
 import { dedent } from '@ls-stack/utils/dedent';
+import { writeFile } from 'fs/promises';
+import path from 'path';
 import { estimateTokenCount } from 'tokenx';
-import { loadConfig } from '../../lib/config.ts';
+import {
+  getExcludePatterns,
+  loadConfig,
+  resolveBaseBranch,
+} from '../../lib/config.ts';
 import { git } from '../../lib/git.ts';
 import { github, type PRData } from '../../lib/github.ts';
-import { showErrorAndExit, runCmdSilentUnwrap } from '../../lib/shell.ts';
-import { reviewSetupConfigs, isGoogleSetup } from './setups.ts';
-import { runSingleReview, reviewValidator } from './reviewer.ts';
+import { runCmdSilentUnwrap, showErrorAndExit } from '../../lib/shell.ts';
 import {
-  formatValidatedReview,
-  handleOutput,
   calculateReviewsUsage,
   calculateTotalUsage,
+  formatValidatedReview,
+  handleOutput,
   logTokenUsageBreakdown,
 } from './output.ts';
+import { reviewValidator, runSingleReview } from './reviewer.ts';
+import {
+  getAvailableSetups,
+  resolveSetup,
+  type ReviewSetupConfig,
+} from './setups.ts';
 import type {
-  PRReviewContext,
   IndividualReview,
-  ReviewSetup,
+  PRReviewContext,
   ReviewScope,
 } from './types.ts';
 
@@ -234,56 +241,51 @@ export const reviewCodeCommand = createCmd({
   run: async ({ setup, scope, pr, baseBranch }) => {
     const config = await loadConfig();
 
-    // Select review setup
-    let reviewSetup: ReviewSetup;
-    if (setup) {
-      if (!Object.keys(reviewSetupConfigs).includes(setup)) {
-        showErrorAndExit(
-          `Invalid setup: ${setup}. Valid options: ${Object.keys(reviewSetupConfigs).join(', ')}`,
-        );
-      }
-      reviewSetup = setup as ReviewSetup;
-    } else if (config.defaultSetup) {
-      reviewSetup = config.defaultSetup;
-    } else {
-      reviewSetup = await cliInput.select(
+    // Resolve setup from CLI arg or interactive selection
+    let setupConfig: ReviewSetupConfig | undefined = resolveSetup(
+      config,
+      setup,
+    );
+    let setupLabel = setup;
+
+    if (setup && !setupConfig) {
+      const availableSetups = getAvailableSetups(config);
+      showErrorAndExit(
+        `Invalid setup: ${setup}. Valid options: ${availableSetups.join(', ')}`,
+      );
+    }
+
+    if (!setupConfig) {
+      // Interactive selection - show built-in options plus any custom setups
+      const builtInOptions = [
+        {
+          value: 'veryLight',
+          label: 'Very light - 1 GPT-5-mini reviewer',
+        },
+        { value: 'light', label: 'Light - 1 GPT-5 reviewer' },
+        { value: 'medium', label: 'Medium - 2 GPT-5 reviewers' },
+        { value: 'heavy', label: 'Heavy - 4 GPT-5 reviewers' },
+      ];
+
+      const customOptions =
+        config.setup?.map((s) => ({
+          value: s.label,
+          label: `${s.label} (custom) - ${s.reviewers.length} reviewer(s)`,
+        })) ?? [];
+
+      const selectedSetup = await cliInput.select(
         'Select the review setup (be careful, the heavier the setup, more costly it will be!)',
         {
-          options: [
-            {
-              value: 'veryLight' as const,
-              label: 'Very light - 1 GPT-5-mini reviewer',
-            },
-            {
-              value: 'lightGoogle' as const,
-              label: 'Light (Google) - 1 Gemini reviewer',
-            },
-            {
-              value: 'mediumGoogle' as const,
-              label: 'Medium (Google) - 2 Gemini reviewers',
-            },
-            { value: 'light' as const, label: 'Light - 1 GPT-5 reviewer' },
-            { value: 'medium' as const, label: 'Medium - 2 GPT-5 reviewers' },
-            { value: 'heavy' as const, label: 'Heavy - 4 GPT-5 reviewers' },
-          ],
+          options: [...builtInOptions, ...customOptions],
         },
       );
-    }
 
-    // Check for required API keys
-    if (!isGoogleSetup(reviewSetup) && !process.env.OPENAI_API_KEY) {
-      showErrorAndExit(
-        `The ${reviewSetup} setup requires OPENAI_API_KEY environment variable`,
-      );
-    }
+      setupLabel = selectedSetup;
+      setupConfig = resolveSetup(config, selectedSetup);
 
-    if (
-      isGoogleSetup(reviewSetup) &&
-      !process.env.GOOGLE_GENERATIVE_AI_API_KEY
-    ) {
-      showErrorAndExit(
-        `The ${reviewSetup} setup requires GOOGLE_GENERATIVE_AI_API_KEY environment variable`,
-      );
+      if (!setupConfig) {
+        showErrorAndExit(`Failed to resolve setup: ${selectedSetup}`);
+      }
     }
 
     // Select review scope
@@ -315,10 +317,11 @@ export const reviewCodeCommand = createCmd({
       prNumber = prInput;
     }
 
-    // Resolve base branch
-    const resolvedBaseBranch = baseBranch ?? config.baseBranch ?? 'main';
-
     const currentBranch = git.getCurrentBranch();
+
+    // Resolve base branch (supports function form)
+    const resolvedBaseBranch =
+      baseBranch ?? resolveBaseBranch(config.baseBranch, currentBranch, 'main');
     const sourceDescription =
       reviewScope === 'staged' ? 'staged changes'
       : prNumber ? `PR #${prNumber}`
@@ -326,14 +329,13 @@ export const reviewCodeCommand = createCmd({
 
     console.log(`\n🔄 Processing ${sourceDescription}...`);
 
-    const setupConfig = reviewSetupConfigs[reviewSetup];
     console.log(
-      `📋 Using ${reviewSetup} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
+      `📋 Using ${setupLabel} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
     );
 
     // Fetch PR data
     const { prData, changedFiles, prDiff } = await fetchPRData(prNumber, {
-      excludeFiles: config.excludePatterns,
+      excludeFiles: getExcludePatterns(config),
       baseBranch: resolvedBaseBranch,
       staged: reviewScope === 'staged',
     });

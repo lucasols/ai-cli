@@ -1,1 +1,6 @@
-export { defineConfig, type Config } from './lib/config.ts';
+export {
+  defineConfig,
+  type Config,
+  type CustomModelConfig,
+  type SetupConfig,
+} from './lib/config.ts';

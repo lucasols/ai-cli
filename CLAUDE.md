@@ -47,6 +47,7 @@ src/
 ```
 
 **Review Flow:**
+
 1. Load config from `ai-cli.config.ts`
 2. Fetch diff based on scope (pr/staged/all)
 3. Run parallel AI reviews using configured setup
@@ -64,15 +65,16 @@ src/
 ## Configuration
 
 Projects using this CLI create `ai-cli.config.ts`:
+
 ```typescript
-import { defineConfig } from 'ai-cmds'
+import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
   baseBranch: 'main',
   excludePatterns: ['*.lock'],
   reviewInstructionsPath: './REVIEW_GUIDELINES.md',
   defaultSetup: 'light',
-})
+});
 ```
 
 ## Requirements
@@ -80,3 +82,9 @@ export default defineConfig({
 - Node.js ≥ 25.0.0
 - pnpm (package manager)
 - `gh` CLI for GitHub operations
+
+## Implementing features or changes
+
+After implementing a feature or changing the code:
+
+- Update the README.md to reflect the changes

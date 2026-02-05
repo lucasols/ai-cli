@@ -6,6 +6,7 @@ AI-powered code review CLI tool that uses OpenAI GPT-5 and Google Gemini models 
 
 - Multiple AI models: GPT-5, GPT-5-mini, Gemini 2.5 Pro, Gemini 2.5 Flash Lite
 - Configurable review setups from very light to heavy
+- Custom setups with full control over reviewer, validator, and formatter models
 - Review scopes: PR, staged changes, or all changes vs base branch
 - Parallel reviews with validation pass for higher accuracy
 - Automatic filtering of import-only changes
@@ -66,9 +67,8 @@ import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
   baseBranch: 'main',
-  excludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
+  codeReviewDiffExcludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
   reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',
-  defaultSetup: 'light',
 });
 ```
 
@@ -76,11 +76,63 @@ export default defineConfig({
 
 | Option | Description |
 |--------|-------------|
-| `baseBranch` | Default base branch for diff comparison |
-| `excludePatterns` | Glob patterns for files to exclude from review |
-| `reviewInstructionsPath` | Path to custom review instructions |
-| `defaultSetup` | Default review setup to use |
-| `logsDir` | Directory for logs (requires `PR_REVIEW_LOGS` env) |
+| `baseBranch` | Base branch for diff comparison. Can be a string or function `(currentBranch) => string` |
+| `codeReviewDiffExcludePatterns` | Glob patterns for files to exclude from review |
+| `reviewInstructionsPath` | Path to custom review instructions markdown file |
+| `setup` | Array of custom named setups (see below) |
+| `defaultValidator` | Default validator model for custom setups |
+| `defaultFormatter` | Default formatter model for custom setups |
+| `logsDir` | Directory for logs (can also use `AI_CLI_LOGS_DIR` env var) |
+
+### Dynamic Base Branch
+
+The `baseBranch` option can be a function that receives the current branch name:
+
+```typescript
+export default defineConfig({
+  baseBranch: (currentBranch) =>
+    currentBranch.startsWith('release/') ? 'main' : 'develop',
+});
+```
+
+### Custom Setups
+
+Define custom named setups with full control over which models are used:
+
+```typescript
+import { defineConfig } from 'ai-cmds';
+import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
+
+export default defineConfig({
+  setup: [
+    {
+      label: 'myCustomSetup',
+      reviewers: [
+        { label: 'GPT-5', model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
+        { model: google('gemini-2.5-pro') },
+      ],
+      validator: { model: openai('gpt-5.2') },
+      formatter: { model: openai('gpt-5-mini') },
+    },
+    {
+      label: 'fastReview',
+      reviewers: [{ model: openai('gpt-5-mini') }],
+      // validator and formatter use defaults
+    },
+  ],
+
+  // Defaults for custom setups that don't specify validator/formatter
+  defaultValidator: { model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
+  defaultFormatter: { model: openai('gpt-5-mini') },
+});
+```
+
+Use custom setups via CLI:
+
+```bash
+ai-cmds review-code --setup myCustomSetup
+```
 
 ## License
 

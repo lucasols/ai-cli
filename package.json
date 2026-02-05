@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "license": "MIT",
   "scripts": {
+    "dev": "node src/main.ts",
     "lint": "pnpm tsc && pnpm eslint && pnpm format",
     "tsc": "tsc -p tsconfig.prod.json",
     "tsc:watch": "tsc -p tsconfig.prod.json --watch",
@@ -13,8 +14,7 @@
     "build": "pnpm test && pnpm lint && pnpm run build:no-test",
     "build:no-test": "tsdown",
     "build:watch": "tsdown --watch",
-    "pre-publish": "./scripts/check-if-is-sync.sh && pnpm build",
-    "npm-publish": "pnpm publish --access=public"
+    "pre-publish": "pnpm build"
   },
   "files": [
     "dist"

@@ -9,12 +9,12 @@ describe('config', () => {
   it('defineConfig returns the config unchanged', () => {
     const config = defineConfig({
       baseBranch: 'main',
-      excludePatterns: ['*.md'],
+      codeReviewDiffExcludePatterns: ['*.md'],
     });
 
     expect(config).toEqual({
       baseBranch: 'main',
-      excludePatterns: ['*.md'],
+      codeReviewDiffExcludePatterns: ['*.md'],
     });
   });
 

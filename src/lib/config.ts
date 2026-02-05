@@ -1,17 +1,81 @@
 import { existsSync } from 'fs';
 import { join } from 'path';
+import type { LanguageModel, JSONValue } from 'ai';
+
+/**
+ * Configuration for a custom AI model used in code review.
+ */
+export type CustomModelConfig = {
+  /** Optional display name for this model in logs and output */
+  label?: string;
+  /** Vercel AI SDK LanguageModel instance (e.g., openai('gpt-5'), google('gemini-2.5-pro')) */
+  model: LanguageModel;
+  /** Provider-specific options passed to the model (e.g., { reasoningEffort: 'high' } for OpenAI) */
+  providerOptions?: Record<string, JSONValue>;
+};
+
+/**
+ * A named setup configuration for code review models.
+ * Allows full control over which models are used for each review phase.
+ */
+export type SetupConfig = {
+  /** Name of this setup, used for selection via CLI --setup flag */
+  label: string;
+  /** Models that perform parallel code reviews. At least one reviewer is required. */
+  reviewers: CustomModelConfig[];
+  /** Model that validates and consolidates findings from all reviewers. Defaults to first reviewer if not specified. */
+  validator?: CustomModelConfig;
+  /** Model that formats the final output to structured JSON. Defaults to gpt-5-mini if not specified. */
+  formatter?: CustomModelConfig;
+};
 
 export type Config = {
-  baseBranch?: string;
-  excludePatterns?: string[];
+  /**
+   * Base branch for comparing changes.
+   * Can be a static string or a function that receives the current branch name.
+   * @default 'main'
+   * @example 'develop'
+   * @example (currentBranch) => currentBranch.startsWith('release/') ? 'main' : 'develop'
+   */
+  baseBranch?: string | ((currentBranch: string) => string);
+
+  /**
+   * Glob patterns to exclude files from the code review diff.
+   * @example ['*.lock', 'dist/**', '*.generated.ts']
+   */
+  codeReviewDiffExcludePatterns?: string[];
+
+  /**
+   * Path to a markdown file containing custom review instructions/guidelines.
+   * These instructions are included in the prompt sent to reviewers.
+   * @example './REVIEW_GUIDELINES.md'
+   */
   reviewInstructionsPath?: string;
-  defaultSetup?:
-    | 'veryLight'
-    | 'lightGoogle'
-    | 'mediumGoogle'
-    | 'light'
-    | 'medium'
-    | 'heavy';
+
+  /**
+   * Array of custom named setups with full control over reviewer, validator, and formatter models.
+   * Each setup has a label that can be selected via the CLI --setup flag.
+   * Custom setups take precedence over built-in presets when labels match.
+   */
+  setup?: SetupConfig[];
+
+  /**
+   * Default validator model used when a setup doesn't specify one.
+   * Falls back to first reviewer in the setup if not specified.
+   */
+  defaultValidator?: CustomModelConfig;
+
+  /**
+   * Default formatter model used when a setup doesn't specify one.
+   * Falls back to gpt-5-mini if not specified.
+   */
+  defaultFormatter?: CustomModelConfig;
+
+  /**
+   * Directory for storing review logs.
+   * Can also be set via `AI_CLI_LOGS_DIR` environment variable.
+   * Config value takes precedence over env var.
+   */
   logsDir?: string;
 };
 
@@ -46,4 +110,33 @@ export async function loadConfig(cwd: string = process.cwd()): Promise<Config> {
 
 export function clearConfigCache(): void {
   cachedConfig = undefined;
+}
+
+/**
+ * Resolves the base branch from config, supporting both string and function forms.
+ */
+export function resolveBaseBranch(
+  configBaseBranch: Config['baseBranch'],
+  currentBranch: string,
+  defaultBranch = 'main',
+): string {
+  if (configBaseBranch === undefined) return defaultBranch;
+  if (typeof configBaseBranch === 'function')
+    return configBaseBranch(currentBranch);
+  return configBaseBranch;
+}
+
+/**
+ * Gets the code review diff exclude patterns from config.
+ */
+export function getExcludePatterns(config: Config): string[] | undefined {
+  return config.codeReviewDiffExcludePatterns;
+}
+
+/**
+ * Resolves the logs directory from config or environment variable.
+ * Config value takes precedence over env var.
+ */
+export function resolveLogsDir(config: Config): string | undefined {
+  return config.logsDir ?? process.env.AI_CLI_LOGS_DIR;
 }

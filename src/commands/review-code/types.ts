@@ -2,6 +2,7 @@ import type { JSONValue, LanguageModel } from 'ai';
 
 export type Model = {
   model: LanguageModel;
+  label?: string;
   config?: {
     providerOptions?: Record<string, JSONValue>;
     topP?: number | false;
@@ -63,11 +64,5 @@ export type GeneralPRComment = {
   createdAt: string;
 };
 
-export type ReviewSetup =
-  | 'veryLight'
-  | 'lightGoogle'
-  | 'mediumGoogle'
-  | 'light'
-  | 'medium'
-  | 'heavy';
+export type ReviewSetup = 'light' | 'medium' | 'heavy';
 export type ReviewScope = 'all' | 'staged' | 'pr';
