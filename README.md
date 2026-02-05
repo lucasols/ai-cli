@@ -148,7 +148,35 @@ export default defineConfig({
 });
 ```
 
-### Configuration Options (`reviewCodeChanges`)
+### Environment Variables
+
+The CLI automatically loads environment variables from `.env` files in your project root. You can customize this behavior with the `loadDotEnv` option:
+
+```typescript
+export default defineConfig({
+  // Load additional env files (later files override earlier ones)
+  loadDotEnv: ['.env.local', '.env.development'],
+
+  // Or load a single additional file
+  loadDotEnv: '.env.local',
+
+  // Or disable automatic .env loading
+  loadDotEnv: false,
+});
+```
+
+By default, `.env` is loaded automatically before the config file is imported, allowing you to reference environment variables in your config.
+
+### Configuration Options
+
+#### Root Options
+
+| Option | Description |
+|--------|-------------|
+| `loadDotEnv` | Controls `.env` file loading. `true` (default): load `.env`, `false`: skip, `string`: additional file path, `string[]`: multiple files (later override earlier) |
+| `reviewCodeChanges` | Configuration for the review commands (see below) |
+
+#### `reviewCodeChanges` Options
 
 | Option | Description |
 |--------|-------------|
