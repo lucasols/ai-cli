@@ -205,7 +205,7 @@ function loadEnvFile(filePath: string, override = false): boolean {
     return false;
   }
 
-  dotenvConfig({ path: filePath, override });
+  dotenvConfig({ path: filePath, override, quiet: true });
   return true;
 }
 
