@@ -82,6 +82,7 @@ export default defineConfig({
 | `codeReviewDiffExcludePatterns` | Glob patterns for files to exclude from review |
 | `reviewInstructionsPath` | Path to custom review instructions markdown file |
 | `setup` | Array of custom named setups (see below) |
+| `scope` | Array of custom named scopes (see below) |
 | `defaultValidator` | Default validator model for custom setups |
 | `defaultFormatter` | Default formatter model for custom setups |
 | `logsDir` | Directory for logs (can also use `AI_CLI_LOGS_DIR` env var) |
@@ -153,6 +154,55 @@ Use custom setups via CLI:
 
 ```bash
 ai-cmds review-code-changes --setup myCustomSetup
+```
+
+### Custom Scopes
+
+Define custom scopes to control which files are included in the review. **When custom scopes are configured, they replace built-in options** (all, staged, pr).
+
+```typescript
+import { defineConfig } from 'ai-cmds';
+
+export default defineConfig({
+  reviewCodeChanges: {
+    scope: [
+      {
+        label: 'src-only',
+        getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')),
+      },
+      {
+        label: 'no-tests',
+        getFiles: (ctx) => ctx.allFiles.filter((f) => !f.includes('.test.')),
+      },
+    ],
+  },
+});
+```
+
+The `getFiles` function receives a context object with:
+- `stagedFiles`: Files currently staged for commit
+- `prFiles`: Files changed in the PR (empty if no PR number provided)
+- `allFiles`: All files changed compared to base branch
+
+To include built-in options alongside your custom scopes, use `BUILT_IN_SCOPE_OPTIONS`:
+
+```typescript
+import { defineConfig, BUILT_IN_SCOPE_OPTIONS } from 'ai-cmds';
+
+export default defineConfig({
+  reviewCodeChanges: {
+    scope: [
+      ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged, pr
+      { label: 'src-only', getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')) },
+    ],
+  },
+});
+```
+
+Use custom scopes via CLI:
+
+```bash
+ai-cmds review-code-changes --scope src-only
 ```
 
 ## License

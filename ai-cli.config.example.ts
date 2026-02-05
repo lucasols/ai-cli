@@ -29,6 +29,21 @@ export default defineConfig({
     //   },
     // ],
 
+    // Custom named scopes (selectable via --scope flag)
+    // When custom scopes are configured, they REPLACE built-in options (all, staged, pr).
+    // To include built-in options alongside custom ones, use BUILT_IN_SCOPE_OPTIONS:
+    // scope: [
+    //   ...BUILT_IN_SCOPE_OPTIONS, // spread built-in options if you want to keep them
+    //   {
+    //     label: 'src-only',
+    //     getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')),
+    //   },
+    //   {
+    //     label: 'no-tests',
+    //     getFiles: (ctx) => ctx.allFiles.filter((f) => !f.includes('.test.')),
+    //   },
+    // ],
+
     // Default validator/formatter for custom setups that don't specify them
     // defaultValidator: { model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
     // defaultFormatter: { model: openai('gpt-5-mini') },

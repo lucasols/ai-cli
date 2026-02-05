@@ -156,16 +156,19 @@ export function getAvailableSetups(config: ReviewCodeChangesConfig): string[] {
  * });
  * ```
  */
-export const BUILT_IN_SETUP_OPTIONS: SetupConfig[] = [
-  {
+export const BUILT_IN_SETUP_OPTIONS: Record<
+  'veryLight' | 'light' | 'medium' | 'heavy',
+  SetupConfig
+> = {
+  veryLight: {
     label: 'veryLight',
     reviewers: [{ model: gpt5MiniModel.model }],
   },
-  {
+  light: {
     label: 'light',
     reviewers: [{ model: gpt5Model.model }],
   },
-  {
+  medium: {
     label: 'medium',
     reviewers: [
       {
@@ -178,7 +181,7 @@ export const BUILT_IN_SETUP_OPTIONS: SetupConfig[] = [
       },
     ],
   },
-  {
+  heavy: {
     label: 'heavy',
     reviewers: [
       {
@@ -199,4 +202,4 @@ export const BUILT_IN_SETUP_OPTIONS: SetupConfig[] = [
       },
     ],
   },
-];
+};

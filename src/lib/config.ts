@@ -29,6 +29,29 @@ export type SetupConfig = {
   formatter?: CustomModelConfig;
 };
 
+/**
+ * Context provided to scope's getFiles function with all available file lists.
+ */
+export type ScopeContext = {
+  /** Files currently staged for commit */
+  stagedFiles: string[];
+  /** Files changed in the PR (empty if no PR number provided) */
+  prFiles: string[];
+  /** All files changed compared to base branch */
+  allFiles: string[];
+};
+
+/**
+ * Configuration for a custom review scope.
+ * Allows defining which files should be included in the review.
+ */
+export type ScopeConfig = {
+  /** Name of this scope, used for selection via CLI --scope flag */
+  label: string;
+  /** Function that receives available file lists and returns the files to review */
+  getFiles: (ctx: ScopeContext) => string[] | Promise<string[]>;
+};
+
 export type ReviewCodeChangesConfig = {
   /**
    * Base branch for comparing changes.
@@ -58,6 +81,13 @@ export type ReviewCodeChangesConfig = {
    * Custom setups take precedence over built-in presets when labels match.
    */
   setup?: SetupConfig[];
+
+  /**
+   * Array of custom review scopes that determine which files are included in the review.
+   * Each scope has a label that can be selected via the CLI --scope flag.
+   * Custom scopes take precedence over built-in scopes when labels match.
+   */
+  scope?: ScopeConfig[];
 
   /**
    * Default validator model used when a setup doesn't specify one.

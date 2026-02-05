@@ -7,6 +7,8 @@ import {
   getExcludePatterns,
   loadConfig,
   resolveBaseBranch,
+  type ScopeConfig,
+  type ScopeContext,
 } from '../../lib/config.ts';
 import { formatNum, removeImportOnlyChangesFromDiff } from '../../lib/diff.ts';
 import { git } from '../../lib/git.ts';
@@ -21,118 +23,40 @@ import {
 } from './output.ts';
 import { reviewValidator, runSingleReview } from './reviewer.ts';
 import {
+  getAvailableScopes,
+  resolveScope,
+  tryGetFileCountSync,
+} from './scopes.ts';
+import {
   getAvailableSetups,
   resolveSetup,
   type ReviewSetupConfig,
 } from './setups.ts';
-import type {
-  IndividualReview,
-  PRReviewContext,
-  ReviewScope,
-} from './types.ts';
+import type { IndividualReview, PRReviewContext } from './types.ts';
 
 const MAX_DIFF_TOKENS = 60_000;
 
-async function fetchPRData(
+/**
+ * Fetches all file lists needed for scope context.
+ * Returns staged files, PR files (if PR number provided), and all changed files vs base branch.
+ */
+async function fetchAllFileLists(
   prNumber: string | null,
-  options: {
-    filterFiles?: string[];
-    excludeFiles?: string[];
-    baseBranch?: string;
-    staged?: boolean;
-  } = {},
+  baseBranch: string,
 ): Promise<{
   prData: PRData | null;
-  changedFiles: string[];
-  prDiff: string;
-  baseBranch: string;
+  scopeContext: ScopeContext;
 }> {
-  const {
-    filterFiles,
-    excludeFiles,
-    baseBranch: baseBranchOverride,
-    staged,
-  } = options;
+  // Fetch staged files
+  const stagedFilesPromise = runCmdSilentUnwrap([
+    'git',
+    'diff',
+    '--cached',
+    '--name-only',
+  ]).then((output) => output.trim().split('\n').filter(Boolean));
 
-  let prData: PRData | null;
-  let allChangedFiles: string[];
-  let baseBranch: string;
-
-  if (staged) {
-    baseBranch = baseBranchOverride ?? 'main';
-    prData = null;
-
-    const stagedFilesOutput = await runCmdSilentUnwrap([
-      'git',
-      'diff',
-      '--cached',
-      '--name-only',
-    ]);
-    allChangedFiles = stagedFilesOutput.trim().split('\n').filter(Boolean);
-
-    if (allChangedFiles.length === 0) {
-      throw new Error('No staged changes found');
-    }
-  } else if (prNumber) {
-    [prData, allChangedFiles] = await Promise.all([
-      github.getPRData(prNumber),
-      github.getChangedFiles(prNumber),
-    ]);
-    baseBranch = prData.baseRefName;
-  } else {
-    baseBranch = baseBranchOverride ?? 'main';
-    prData = null;
-
-    const changedFilesOutput = await runCmdSilentUnwrap([
-      'git',
-      'diff',
-      '--name-only',
-      `origin/${baseBranch}...HEAD`,
-    ]);
-    allChangedFiles = changedFilesOutput.trim().split('\n').filter(Boolean);
-  }
-
-  let changedFiles = allChangedFiles;
-
-  if (filterFiles) {
-    changedFiles = changedFiles.filter((file) =>
-      filterFiles.some((pattern) => path.matchesGlob(file, pattern)),
-    );
-  }
-
-  if (excludeFiles) {
-    changedFiles = changedFiles.filter(
-      (file) =>
-        !excludeFiles.some((pattern) => path.matchesGlob(file, pattern)),
-    );
-  }
-
-  if ((filterFiles || excludeFiles) && changedFiles.length === 0) {
-    throw new Error('No files match the filter criteria');
-  }
-
-  if (filterFiles || excludeFiles) {
-    const excludedCount = allChangedFiles.length - changedFiles.length;
-    console.log(
-      `📂 Reviewing ${changedFiles.length} files (${excludedCount} files filtered out)`,
-    );
-  }
-
-  let prDiff: string;
-
-  if (staged) {
-    const rawDiff = await git.getStagedDiff({
-      includeFiles: filterFiles,
-      ignoreFiles: excludeFiles,
-      silent: true,
-    });
-
-    prDiff = removeImportOnlyChangesFromDiff(rawDiff);
-
-    console.log(
-      `📝 Staged diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
-    );
-  } else {
+  // Fetch all changed files vs base branch
+  const allFilesPromise = (async () => {
     await runCmdSilentUnwrap([
       'git',
       'fetch',
@@ -142,20 +66,100 @@ async function fetchPRData(
       // Ignore errors if branch doesn't exist on remote or is already up to date
     });
 
-    const rawDiff = await git.getDiffToBranch(baseBranch, {
-      includeFiles: filterFiles,
+    const output = await runCmdSilentUnwrap([
+      'git',
+      'diff',
+      '--name-only',
+      `origin/${baseBranch}...HEAD`,
+    ]);
+    return output.trim().split('\n').filter(Boolean);
+  })();
+
+  // Fetch PR data and files if PR number provided
+  let prData: PRData | null = null;
+  let prFiles: string[] = [];
+
+  if (prNumber) {
+    [prData, prFiles] = await Promise.all([
+      github.getPRData(prNumber),
+      github.getChangedFiles(prNumber),
+    ]);
+  }
+
+  const [stagedFiles, allFiles] = await Promise.all([
+    stagedFilesPromise,
+    allFilesPromise,
+  ]);
+
+  return {
+    prData,
+    scopeContext: {
+      stagedFiles,
+      prFiles,
+      allFiles,
+    },
+  };
+}
+
+/**
+ * Gets the diff for the selected files.
+ */
+async function getDiffForFiles(
+  files: string[],
+  options: {
+    baseBranch: string;
+    excludeFiles?: string[];
+    useStaged: boolean;
+  },
+): Promise<string> {
+  const { baseBranch, excludeFiles, useStaged } = options;
+
+  if (useStaged) {
+    const rawDiff = await git.getStagedDiff({
+      includeFiles: files,
       ignoreFiles: excludeFiles,
       silent: true,
     });
 
-    prDiff = removeImportOnlyChangesFromDiff(rawDiff);
+    const prDiff = removeImportOnlyChangesFromDiff(rawDiff);
 
     console.log(
-      `📝 Diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
+      `📝 Staged diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
     );
+
+    return prDiff;
   }
 
-  return { prData, changedFiles, prDiff, baseBranch };
+  const rawDiff = await git.getDiffToBranch(baseBranch, {
+    includeFiles: files,
+    ignoreFiles: excludeFiles,
+    silent: true,
+  });
+
+  const prDiff = removeImportOnlyChangesFromDiff(rawDiff);
+
+  console.log(
+    `📝 Diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
+  );
+
+  return prDiff;
+}
+
+/**
+ * Applies exclude patterns to a file list.
+ */
+function applyExcludePatterns(
+  files: string[],
+  excludePatterns?: string[],
+): string[] {
+  if (!excludePatterns || excludePatterns.length === 0) {
+    return files;
+  }
+
+  return files.filter(
+    (file) =>
+      !excludePatterns.some((pattern) => path.matchesGlob(file, pattern)),
+  );
 }
 
 export const reviewCodeChangesCommand = createCmd({
@@ -210,10 +214,6 @@ export const reviewCodeChangesCommand = createCmd({
     if (!setupConfig) {
       // Interactive selection - use custom setups if configured, otherwise built-in
       const builtInOptions = [
-        {
-          value: 'veryLight',
-          label: 'Very light - 1 GPT-5-mini reviewer',
-        },
         { value: 'light', label: 'Light - 1 GPT-5 reviewer' },
         { value: 'medium', label: 'Medium - 2 GPT-5 reviewers' },
         { value: 'heavy', label: 'Heavy - 4 GPT-5 reviewers' },
@@ -222,7 +222,7 @@ export const reviewCodeChangesCommand = createCmd({
       const customOptions =
         config.setup?.map((s) => ({
           value: s.label,
-          label: `${s.label} - ${s.reviewers.length} reviewer(s)`,
+          label: s.label,
         })) ?? [];
 
       // If custom setups are configured, use only those; otherwise use built-in
@@ -240,44 +240,119 @@ export const reviewCodeChangesCommand = createCmd({
       }
     }
 
-    // Select review scope
-    let reviewScope: ReviewScope;
+    // Get PR number first (needed for fetching file lists)
     let prNumber: string | null = pr ?? null;
-
-    if (scope) {
-      if (!['all', 'staged', 'pr'].includes(scope)) {
-        showErrorAndExit(
-          `Invalid scope: ${scope}. Valid options: all, staged, pr`,
-        );
-      }
-      reviewScope = scope as ReviewScope;
-    } else {
-      reviewScope = await cliInput.select('Select the review scope', {
-        options: [
-          {
-            value: 'all' as const,
-            label: 'All changes (compared to base branch)',
-          },
-          { value: 'staged' as const, label: 'Staged changes only' },
-          { value: 'pr' as const, label: 'PR (enter PR number)' },
-        ],
-      });
-    }
-
-    if (reviewScope === 'pr' && !prNumber) {
-      const prInput = await cliInput.text('Enter PR number');
-      prNumber = prInput;
-    }
 
     const currentBranch = git.getCurrentBranch();
 
     // Resolve base branch (supports function form)
     const resolvedBaseBranch =
       baseBranch ?? resolveBaseBranch(config.baseBranch, currentBranch, 'main');
+
+    // Fetch all file lists upfront for scope context
+    console.log('\n🔄 Fetching file lists...');
+    const { prData, scopeContext } = await fetchAllFileLists(
+      prNumber,
+      resolvedBaseBranch,
+    );
+
+    // If PR number was provided, update base branch from PR data
+    const effectiveBaseBranch = prData?.baseRefName ?? resolvedBaseBranch;
+
+    // Resolve scope from CLI arg or interactive selection
+    let scopeConfig: ScopeConfig | undefined = resolveScope(config, scope);
+    let scopeLabel = scope;
+
+    if (scope && !scopeConfig) {
+      const availableScopes = getAvailableScopes(config);
+      showErrorAndExit(
+        `Invalid scope: ${scope}. Valid options: ${availableScopes.join(', ')}`,
+      );
+    }
+
+    if (!scopeConfig) {
+      // Interactive selection - use custom scopes if configured, otherwise built-in
+      const builtInOptions = [
+        {
+          value: 'all',
+          label: `All changes (${scopeContext.allFiles.length} files)`,
+        },
+        {
+          value: 'staged',
+          label: `Staged changes (${scopeContext.stagedFiles.length} files)`,
+        },
+        {
+          value: 'pr',
+          label: `PR changes${scopeContext.prFiles.length > 0 ? ` (${scopeContext.prFiles.length} files)` : ' (enter PR number)'}`,
+        },
+      ];
+
+      const customOptions =
+        config.scope?.map((s) => {
+          const fileCount = tryGetFileCountSync(s, scopeContext);
+          return {
+            value: s.label,
+            label:
+              fileCount !== null ? `${s.label} (${fileCount} files)` : s.label,
+          };
+        }) ?? [];
+
+      // If custom scopes are configured, use only those; otherwise use built-in
+      const options = customOptions.length > 0 ? customOptions : builtInOptions;
+
+      const selectedScope = await cliInput.select('Select the review scope', {
+        options,
+      });
+
+      scopeLabel = selectedScope;
+      scopeConfig = resolveScope(config, selectedScope);
+
+      if (!scopeConfig) {
+        showErrorAndExit(`Failed to resolve scope: ${selectedScope}`);
+      }
+    }
+
+    // Handle PR scope that needs PR number
+    if (scopeLabel === 'pr' && !prNumber && scopeContext.prFiles.length === 0) {
+      const prInput = await cliInput.text('Enter PR number');
+      prNumber = prInput;
+
+      // Re-fetch PR files with the new PR number
+      console.log(`🔄 Fetching PR #${prNumber} files...`);
+      const { prData: newPrData, scopeContext: newScopeContext } =
+        await fetchAllFileLists(prNumber, resolvedBaseBranch);
+
+      // Update scope context with PR files
+      scopeContext.prFiles = newScopeContext.prFiles;
+
+      // Update prData if it was fetched
+      if (newPrData) {
+        Object.assign(prData ?? {}, newPrData);
+      }
+    }
+
+    // Get files using the scope's getFiles function
+    const scopeFiles = await scopeConfig.getFiles(scopeContext);
+    const excludePatterns = getExcludePatterns(config);
+    const changedFiles = applyExcludePatterns(scopeFiles, excludePatterns);
+
+    if (changedFiles.length === 0) {
+      showErrorAndExit(
+        `No files found for scope "${scopeLabel}"${excludePatterns ? ' after applying exclude patterns' : ''}`,
+      );
+    }
+
+    if (excludePatterns && scopeFiles.length !== changedFiles.length) {
+      const excludedCount = scopeFiles.length - changedFiles.length;
+      console.log(
+        `📂 Reviewing ${changedFiles.length} files (${excludedCount} files filtered out)`,
+      );
+    }
+
     const sourceDescription =
-      reviewScope === 'staged' ? 'staged changes'
+      scopeLabel === 'staged' ? 'staged changes'
       : prNumber ? `PR #${prNumber}`
-      : `${currentBranch} vs ${resolvedBaseBranch}`;
+      : `${currentBranch} vs ${effectiveBaseBranch}`;
 
     console.log(`\n🔄 Processing ${sourceDescription}...`);
 
@@ -285,11 +360,12 @@ export const reviewCodeChangesCommand = createCmd({
       `📋 Using ${setupLabel} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
     );
 
-    // Fetch PR data
-    const { prData, changedFiles, prDiff } = await fetchPRData(prNumber, {
-      excludeFiles: getExcludePatterns(config),
-      baseBranch: resolvedBaseBranch,
-      staged: reviewScope === 'staged',
+    // Get diff for the selected files
+    const useStaged = scopeLabel === 'staged';
+    const prDiff = await getDiffForFiles(changedFiles, {
+      baseBranch: effectiveBaseBranch,
+      excludeFiles: excludePatterns,
+      useStaged,
     });
 
     const diffTokens = estimateTokenCount(prDiff);
