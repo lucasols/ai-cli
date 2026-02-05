@@ -7,7 +7,7 @@ AI-powered CLI tool that uses OpenAI and Google Gemini models to review code cha
 - Multiple AI models: GPT-5, GPT-5-mini, GPT-4o-mini, Gemini 2.5 Pro, Gemini 2.0 Flash
 - Configurable review setups from light to heavy
 - Custom setups with full control over reviewer and validator models
-- Three commands: `review-code-changes` for local development, `review-pr` for CI, `create-pr` for PR creation
+- Four commands: `review-code-changes` for local development, `advanced-review-changes` for guided/customized local review focus, `review-pr` for CI, `create-pr` for PR creation
 - Parallel reviews with a single structured validation pass for higher accuracy
 - Optional provider-aware concurrency limits for reviewer fan-out
 - AI-generated PR titles and descriptions
@@ -59,6 +59,35 @@ ai-cmds review-code-changes --scope all --output reviews/local-review.md
 - `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup id
 - `--base-branch` - Base branch for diff comparison (if not specified, prompts for selection)
 - `--output` - Output file path for the generated review markdown (default: `pr-review.md`)
+
+### `advanced-review-changes` - Advanced Local Development
+
+Review local code changes with the same flow as `review-code-changes`, plus extra control over review guidance.
+
+```bash
+# Guided mode (prompts for custom instruction and instruction inclusion)
+ai-cmds advanced-review-changes
+
+# Pass a custom review focus instruction
+ai-cmds advanced-review-changes --custom-review-instruction "Focus on authentication and authorization issues"
+
+# Disable default/configured instructions and only use your custom instruction
+ai-cmds advanced-review-changes \
+  --custom-review-instruction "Focus on performance bottlenecks and N+1 queries" \
+  --include-default-review-instructions false
+```
+
+**Arguments:**
+- `--scope` - Review scope: `all`, `staged`, `globs`, `unViewed`, or custom scope id
+- `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup id
+- `--base-branch` - Base branch for diff comparison (if not specified, prompts for selection)
+- `--output` - Output file path for the generated review markdown (default: `pr-review.md`)
+- `--custom-review-instruction` - Extra custom instruction that tells reviewers what to focus on
+- `--include-default-review-instructions` - Whether to include configured/default instructions (`true` or `false`)
+
+**Interactive behavior:**
+- If `--include-default-review-instructions` is not provided, the CLI shows a confirm dialog.
+- If `--custom-review-instruction` is not provided, the CLI asks whether you want to add one and prompts for it if confirmed.
 
 ### `review-pr` - CI/PR Review
 
@@ -255,6 +284,7 @@ By default, `.env` is loaded automatically before the config file is imported, a
 
 When `codeReview.logsDir` (or `AI_CLI_LOGS_DIR`) is set, each review run stores artifacts under:
 
+- `<logsDir>/advanced-review-changes/<run-id>/...` for advanced local reviews
 - `<logsDir>/review-code-changes/<run-id>/...` for local reviews
 - `<logsDir>/review-pr/<run-id>/...` for PR reviews
 

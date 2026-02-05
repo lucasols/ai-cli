@@ -10,6 +10,8 @@ import {
   createReviewPrompt,
   createValidationPrompt,
   createPreviousReviewCheckPrompt,
+  type ReviewInstructionOptions,
+  type ReviewPromptOptions,
 } from './prompts.ts';
 import { github } from '../../lib/github.ts';
 import { EXTRA_DETAILS_MARKER, PR_REVIEW_MARKER } from './output.ts';
@@ -111,8 +113,7 @@ export async function runSingleReview(
   prDiff: string,
   reviewerId: number,
   { model, config }: Model,
-  reviewInstructionsPath?: string,
-  includeAgentsFileInReviewPrompt?: boolean,
+  promptOptions: ReviewPromptOptions = {},
 ): Promise<IndividualReview> {
   const startedAt = new Date();
   const initialPrompt = createReviewPrompt(
@@ -120,8 +121,7 @@ export async function runSingleReview(
     prData,
     changedFiles,
     prDiff,
-    reviewInstructionsPath,
-    includeAgentsFileInReviewPrompt,
+    promptOptions,
   );
 
   const result = await resultify(
@@ -197,7 +197,7 @@ export async function reviewValidator(
   prDiff: string,
   humanComments: GeneralPRComment[] | undefined,
   { model, config }: Model,
-  reviewInstructionsPath?: string,
+  instructionOptions: ReviewInstructionOptions = {},
 ): Promise<ValidatedReview> {
   const startedAt = new Date();
   const feedbackPrompt = createValidationPrompt(
@@ -207,7 +207,7 @@ export async function reviewValidator(
     changedFiles,
     prDiff,
     humanComments,
-    reviewInstructionsPath,
+    instructionOptions,
   );
 
   const result = await resultify(
@@ -279,7 +279,7 @@ export async function runPreviousReviewCheck(
   changedFiles: string[],
   prDiff: string,
   { model, config }: Model,
-  reviewInstructionsPath?: string,
+  instructionOptions: ReviewInstructionOptions = {},
 ): Promise<IndividualReview | null> {
   const startedAt = new Date();
   const previousReviewBody = await github.getLatestPRReviewComment(
@@ -311,7 +311,7 @@ export async function runPreviousReviewCheck(
     changedFiles,
     prDiff,
     previousIssues,
-    reviewInstructionsPath,
+    instructionOptions,
   );
 
   const result = await resultify(

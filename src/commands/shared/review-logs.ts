@@ -10,7 +10,7 @@ import type {
 
 type PersistReviewRunLogsParams = {
   logsDir: string;
-  command: 'review-code-changes' | 'review-pr';
+  command: 'advanced-review-changes' | 'review-code-changes' | 'review-pr';
   context: ReviewContext;
   setupId: string;
   scopeId?: string;

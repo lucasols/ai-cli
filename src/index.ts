@@ -16,6 +16,7 @@ export {
 } from './commands/shared/scopes.ts';
 export { BUILT_IN_SETUP_OPTIONS } from './commands/shared/setups.ts';
 
+export { advancedReviewChangesCommand } from './commands/advanced-review-changes/advanced-review-changes.ts';
 export { createPRCommand } from './commands/create-pr/create-pr.ts';
 export { reviewCodeChangesCommand } from './commands/review-code-changes/review-code-changes.ts';
 export { reviewPRCommand } from './commands/review-pr/review-pr.ts';

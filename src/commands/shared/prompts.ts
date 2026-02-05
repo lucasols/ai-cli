@@ -12,6 +12,16 @@ import type {
 
 const CODE_FENCE = '```';
 
+export type ReviewInstructionOptions = {
+  reviewInstructionsPath?: string;
+  includeDefaultReviewInstructions?: boolean;
+  customReviewInstruction?: string;
+};
+
+export type ReviewPromptOptions = ReviewInstructionOptions & {
+  includeAgentsFileInReviewPrompt?: boolean;
+};
+
 const defaultReviewInstructions = dedent`
   # Code Review Instructions
 
@@ -68,6 +78,38 @@ function getReviewInstructions(customPath?: string): string {
     }
   }
   return defaultReviewInstructions;
+}
+
+function createEffectiveReviewInstructions(
+  options: ReviewInstructionOptions = {},
+): string {
+  const includeDefaultReviewInstructions =
+    options.includeDefaultReviewInstructions ?? true;
+  const normalizedCustomInstruction = options.customReviewInstruction?.trim();
+  const sections: string[] = [];
+
+  if (includeDefaultReviewInstructions) {
+    sections.push(getReviewInstructions(options.reviewInstructionsPath));
+  }
+
+  if (normalizedCustomInstruction) {
+    sections.push(dedent`
+      ## Additional Focus
+
+      ${normalizedCustomInstruction}
+    `);
+  }
+
+  if (sections.length === 0) {
+    return dedent`
+      # Code Review Instructions
+
+      Focus on concrete, actionable issues with real impact on behavior,
+      correctness, security, or maintainability.
+    `;
+  }
+
+  return sections.join('\n\n');
 }
 
 function getAgentsInstructions(includeAgentsFileInReviewPrompt: boolean): {
@@ -228,12 +270,11 @@ export function createReviewPrompt(
   prData: PRData | null,
   changedFiles: string[],
   prDiff: string,
-  reviewInstructionsPath?: string,
-  includeAgentsFileInReviewPrompt = true,
+  options: ReviewPromptOptions = {},
 ): { system: string; prompt: string } {
-  const reviewInstructions = getReviewInstructions(reviewInstructionsPath);
+  const reviewInstructions = createEffectiveReviewInstructions(options);
   const agentsInstructions = getAgentsInstructions(
-    includeAgentsFileInReviewPrompt,
+    options.includeAgentsFileInReviewPrompt ?? true,
   );
 
   const systemCacheableContent = `
@@ -339,9 +380,9 @@ export function createValidationPrompt(
   changedFiles: string[],
   prDiff: string,
   humanComments?: GeneralPRComment[],
-  reviewInstructionsPath?: string,
+  options: ReviewInstructionOptions = {},
 ): { system: string; prompt: string } {
-  const reviewInstructions = getReviewInstructions(reviewInstructionsPath);
+  const reviewInstructions = createEffectiveReviewInstructions(options);
 
   const systemCacheableContent = `
 <review_instructions format="markdown">
@@ -445,9 +486,9 @@ export function createPreviousReviewCheckPrompt(
   changedFiles: string[],
   prDiff: string,
   previousIssues: string,
-  reviewInstructionsPath?: string,
+  options: ReviewInstructionOptions = {},
 ): { system: string; prompt: string } {
-  const reviewInstructions = getReviewInstructions(reviewInstructionsPath);
+  const reviewInstructions = createEffectiveReviewInstructions(options);
 
   const system = dedent`
     <review_instructions format="markdown">

@@ -332,7 +332,9 @@ export const reviewPRCommand = createCmd({
                 changedFiles,
                 prDiff,
                 reviewer.model,
-                config.reviewInstructionsPath,
+                {
+                  reviewInstructionsPath: config.reviewInstructionsPath,
+                },
               ),
             {
               meta: { reviewerId: reviewer.reviewerId, providerId },
@@ -352,8 +354,11 @@ export const reviewPRCommand = createCmd({
               prDiff,
               reviewerId,
               reviewer.model,
-              config.reviewInstructionsPath,
-              config.includeAgentsFileInReviewPrompt,
+              {
+                reviewInstructionsPath: config.reviewInstructionsPath,
+                includeAgentsFileInReviewPrompt:
+                  config.includeAgentsFileInReviewPrompt,
+              },
             ),
           {
             meta: { reviewerId, providerId },
@@ -422,7 +427,9 @@ export const reviewPRCommand = createCmd({
       prDiff,
       humanComments,
       setupConfig.validator,
-      config.reviewInstructionsPath,
+      {
+        reviewInstructionsPath: config.reviewInstructionsPath,
+      },
     );
     console.log(
       `✅ Validation complete - found ${validatedReview.issues.length} validated issues`,

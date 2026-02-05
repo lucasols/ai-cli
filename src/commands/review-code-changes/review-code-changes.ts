@@ -253,6 +253,402 @@ async function loadScopeContext(params: {
   return { stagedFiles, allFiles };
 }
 
+export type LocalReviewCommandId =
+  | 'advanced-review-changes'
+  | 'review-code-changes';
+
+export type LocalReviewInstructionSelection = {
+  includeDefaultReviewInstructions?: boolean;
+  customReviewInstruction?: string;
+};
+
+type RunLocalReviewChangesWorkflowOptions = {
+  setup?: string;
+  scope?: string;
+  baseBranch?: string;
+  output?: string;
+  commandId: LocalReviewCommandId;
+  resolveInstructionSelection?: () => Promise<LocalReviewInstructionSelection>;
+};
+
+export async function runLocalReviewChangesWorkflow(
+  options: RunLocalReviewChangesWorkflowOptions,
+): Promise<void> {
+  const {
+    setup,
+    scope,
+    baseBranch,
+    output,
+    commandId,
+    resolveInstructionSelection,
+  } = options;
+  const runStartedAt = new Date();
+  const rootConfig = await loadConfig();
+  const config = rootConfig.codeReview ?? {};
+  validateConcurrencyPerProvider(config.concurrencyPerProvider);
+  const outputFile = output ?? config.reviewOutputPath ?? 'pr-review.md';
+  const logsDir = resolveLogsDir(config);
+
+  let setupConfig: ReviewSetupConfig | undefined = resolveSetup(config, setup);
+  let setupLabel = setup;
+
+  if (setup && !setupConfig) {
+    const availableSetups = getAvailableSetups(config);
+    showErrorAndExit(
+      `Invalid setup: ${setup}. Valid options: ${availableSetups.join(', ')}`,
+    );
+  }
+
+  if (!setupConfig) {
+    const setupsToUse = config.setup ?? BUILT_IN_SETUP_OPTIONS;
+    const setupOptions = setupConfigsToOptions(setupsToUse);
+
+    const selectedSetup = await cliInput.select('Select the review setup', {
+      options: setupOptions,
+    });
+
+    setupLabel = selectedSetup;
+    setupConfig = resolveSetup(config, selectedSetup);
+
+    if (!setupConfig) {
+      showErrorAndExit(`Failed to resolve setup: ${selectedSetup}`);
+    }
+  }
+
+  let scopeConfig: ScopeConfig | undefined = resolveScope(config, scope);
+  let scopeLabel = scope;
+
+  if (scope && !scopeConfig) {
+    const availableScopes = getAvailableScopes(config);
+    showErrorAndExit(
+      `Invalid scope: ${scope}. Valid options: ${availableScopes.join(', ')}`,
+    );
+  }
+
+  if (!scopeConfig) {
+    const scopesToUse = config.scope ?? BUILT_IN_SCOPE_OPTIONS;
+    const scopeOptions = scopeConfigsToOptions(scopesToUse);
+    const selectedScope = await cliInput.select('Select the review scope', {
+      options: scopeOptions,
+    });
+    scopeLabel = selectedScope;
+    scopeConfig = resolveScope(config, selectedScope);
+
+    if (!scopeConfig) {
+      showErrorAndExit(`Failed to resolve scope: ${selectedScope}`);
+    }
+  }
+
+  const instructionSelection = await resolveInstructionSelection?.();
+  const customReviewInstruction =
+    instructionSelection?.customReviewInstruction?.trim() || undefined;
+  const includeDefaultReviewInstructions =
+    instructionSelection?.includeDefaultReviewInstructions;
+
+  const currentBranch = git.getCurrentBranch();
+  const diffSource = getScopeDiffSource(scopeConfig);
+  const useStaged = diffSource === 'staged';
+
+  let comparisonBaseRef: ResolvedComparisonBaseRef | null = null;
+  if (!useStaged) {
+    const selectedBaseBranch = await resolveBaseBranchForReview(
+      currentBranch,
+      config.baseBranch,
+      baseBranch,
+    );
+    comparisonBaseRef = await resolveComparisonBaseRef(selectedBaseBranch);
+  }
+
+  console.log('\n🔄 Fetching file lists...');
+  let scopeContext: ScopeContext;
+  try {
+    scopeContext = await loadScopeContext({
+      scopeConfig,
+      comparisonRef: comparisonBaseRef?.comparisonRef ?? null,
+    });
+  } catch (error) {
+    showErrorAndExit(
+      `Failed to load scope context for "${scopeConfig.id}": ${String(error)}`,
+    );
+  }
+
+  let scopeFiles: string[];
+  try {
+    scopeFiles = await scopeConfig.getFiles(scopeContext);
+  } catch (error) {
+    showErrorAndExit(
+      `Failed to resolve files for scope "${scopeConfig.id}": ${String(error)}`,
+    );
+  }
+
+  const excludePatterns = getExcludePatterns(config);
+  const changedFiles = applyExcludePatterns(scopeFiles, excludePatterns);
+
+  if (changedFiles.length === 0) {
+    showErrorAndExit(
+      `No files found for scope "${scopeLabel}"${excludePatterns ? ' after applying exclude patterns' : ''}`,
+    );
+  }
+
+  if (excludePatterns && scopeFiles.length !== changedFiles.length) {
+    const excludedCount = scopeFiles.length - changedFiles.length;
+    console.log(
+      `📂 Reviewing ${changedFiles.length} files (${excludedCount} files filtered out)`,
+    );
+  }
+
+  const sourceDescription =
+    useStaged ? 'staged changes' : (
+      `${currentBranch} vs ${comparisonBaseRef?.comparisonRef ?? 'unknown'}`
+    );
+
+  console.log(`\n🔄 Processing ${sourceDescription}...`);
+  if (comparisonBaseRef?.source === 'local') {
+    console.log(
+      `⚠️ Running against local base branch "${comparisonBaseRef.baseBranch}" because remote ref was unavailable.`,
+    );
+  }
+
+  console.log(
+    `📋 Using ${setupLabel} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
+  );
+
+  const prDiff = await getDiffForFiles(changedFiles, {
+    baseBranch: comparisonBaseRef?.comparisonRef ?? currentBranch,
+    excludeFiles: excludePatterns,
+    useStaged,
+  });
+
+  const context: LocalReviewContext = {
+    type: 'local',
+    additionalInstructions: customReviewInstruction,
+  };
+
+  if (!prDiff.trim()) {
+    console.log(
+      'ℹ️ No reviewable code changes found after filtering import/export-only changes.',
+    );
+    const skippedUsage = createZeroTokenUsage('validator-skipped');
+    const reviewContent = await formatValidatedReview(
+      {
+        summary:
+          'No reviewable code changes found after filtering import/export-only changes.',
+        issues: [],
+        usage: skippedUsage,
+      },
+      'local',
+      context,
+      currentBranch,
+      {
+        reviews: [],
+        validatorUsage: skippedUsage,
+      },
+    );
+    await writeReviewFile(outputFile, reviewContent);
+    await handleOutput(context, reviewContent, outputFile);
+    return;
+  }
+
+  const diffTokens = estimateTokenCount(prDiff);
+
+  if (diffTokens > MAX_DIFF_TOKENS) {
+    console.log(
+      `⚠️  Diff has ${formatNum(diffTokens)} tokens (max suggested: ${formatNum(MAX_DIFF_TOKENS)})`,
+    );
+
+    const shouldContinue = await cliInput.confirm(
+      'Continue anyway? Large diffs may result in less accurate reviews',
+      {
+        initial: false,
+      },
+    );
+
+    if (!shouldContinue) {
+      process.exit(1);
+    }
+  }
+
+  console.log(
+    `🔍 Running ${setupConfig.reviewers.length} independent reviews...`,
+  );
+
+  const reviewersByProvider = new Map<string, ProviderReviewer[]>();
+  for (const [index, model] of setupConfig.reviewers.entries()) {
+    const reviewerId = index + 1;
+    const providerId = getModelProviderId(model);
+
+    const providerReviewers = reviewersByProvider.get(providerId);
+    if (providerReviewers) {
+      providerReviewers.push({ reviewerId, model });
+    } else {
+      reviewersByProvider.set(providerId, [{ reviewerId, model }]);
+    }
+  }
+
+  console.log(`📊 Running queues for ${reviewersByProvider.size} provider(s)`);
+
+  const providerQueuePromises: Promise<ProviderQueueResult>[] = [];
+  for (const [providerId, providerReviewers] of reviewersByProvider) {
+    const providerConcurrency = resolveProviderConcurrency(
+      config.concurrencyPerProvider,
+      providerId,
+    );
+    console.log(
+      `🔄 Provider "${providerId}": ${providerReviewers.length} reviewer(s), concurrency ${formatConcurrencyLimit(providerConcurrency)}`,
+    );
+
+    const queue = createAsyncQueueWithMeta<
+      IndividualReview,
+      { reviewerId: number; providerId: string }
+    >({ concurrency: providerConcurrency });
+
+    for (const reviewer of providerReviewers) {
+      void queue.resultifyAdd(
+        () =>
+          runSingleReview(
+            context,
+            null,
+            changedFiles,
+            prDiff,
+            reviewer.reviewerId,
+            reviewer.model,
+            {
+              reviewInstructionsPath: config.reviewInstructionsPath,
+              includeAgentsFileInReviewPrompt:
+                config.includeAgentsFileInReviewPrompt,
+              includeDefaultReviewInstructions,
+              customReviewInstruction,
+            },
+          ),
+        {
+          meta: { reviewerId: reviewer.reviewerId, providerId },
+        },
+      );
+    }
+
+    providerQueuePromises.push(
+      queue.onIdle().then(() => ({
+        providerId,
+        reviews: queue.completions.map((completion) => completion.value),
+        failures: queue.failures.map((failure) => ({
+          reviewerId: failure.meta.reviewerId,
+          error: failure.error,
+        })),
+      })),
+    );
+  }
+
+  const successfulReviews: IndividualReview[] = [];
+  const queueResults = await Promise.allSettled(providerQueuePromises);
+
+  for (const queueResult of queueResults) {
+    if (queueResult.status !== 'fulfilled') {
+      console.error('Provider queue failed:', queueResult.reason);
+      continue;
+    }
+
+    successfulReviews.push(...queueResult.value.reviews);
+    for (const failure of queueResult.value.failures) {
+      console.error(
+        `Review ${failure.reviewerId} failed on provider "${queueResult.value.providerId}":`,
+        failure.error,
+      );
+    }
+  }
+
+  successfulReviews.sort((a, b) => {
+    const aId =
+      typeof a.reviewerId === 'number' ?
+        a.reviewerId
+      : Number.POSITIVE_INFINITY;
+    const bId =
+      typeof b.reviewerId === 'number' ?
+        b.reviewerId
+      : Number.POSITIVE_INFINITY;
+    if (aId !== bId) {
+      return aId - bId;
+    }
+    return String(a.reviewerId).localeCompare(String(b.reviewerId));
+  });
+
+  if (successfulReviews.length === 0) {
+    showErrorAndExit('All reviewers failed - cannot proceed with review');
+  }
+
+  console.log('\n🔍 Running validator to consolidate findings...');
+  const validatedReview = await reviewValidator(
+    context,
+    successfulReviews,
+    null,
+    changedFiles,
+    prDiff,
+    undefined,
+    setupConfig.validator,
+    {
+      reviewInstructionsPath: config.reviewInstructionsPath,
+      includeDefaultReviewInstructions,
+      customReviewInstruction,
+    },
+  );
+  console.log(
+    `✅ Validation complete - found ${validatedReview.issues.length} validated issues`,
+  );
+  logValidatedIssueSummary(validatedReview);
+
+  const reviewsUsage = calculateReviewsUsage(successfulReviews);
+  const totalUsage = calculateTotalUsage([
+    ...successfulReviews.map((review) => review.usage),
+    validatedReview.usage,
+  ]);
+
+  logTokenUsageBreakdown(reviewsUsage, validatedReview.usage);
+
+  console.log(
+    dedent`
+      📊 Tokens:
+        Total: ${formatNum(totalUsage.totalTokens || 0)}
+        Input: ${formatNum(totalUsage.promptTokens || 0)}
+        Output: ${formatNum(totalUsage.completionTokens || 0)}
+        Reasoning: ${formatNum(totalUsage.reasoningTokens || 0)}
+    `,
+  );
+
+  console.log('📝 Formatting review...');
+  const reviewContent = await formatValidatedReview(
+    validatedReview,
+    'local',
+    context,
+    currentBranch,
+    {
+      reviews: successfulReviews,
+      validatorUsage: validatedReview.usage,
+    },
+  );
+
+  if (logsDir) {
+    const runLogsPath = await persistReviewRunLogs({
+      logsDir,
+      command: commandId,
+      context,
+      setupId: setupLabel ?? setupConfig.reviewers.length.toString(),
+      scopeId: scopeConfig.id,
+      branchName: currentBranch,
+      runStartedAt,
+      runEndedAt: new Date(),
+      changedFiles,
+      prDiff,
+      reviews: successfulReviews,
+      validatedReview,
+      finalReviewMarkdown: reviewContent,
+      outputFilePath: outputFile,
+    });
+    console.log(`🗂️ Review logs saved to ${runLogsPath}`);
+  }
+
+  await writeReviewFile(outputFile, reviewContent);
+  await handleOutput(context, reviewContent, outputFile);
+}
+
 export const reviewCodeChangesCommand = createCmd({
   description: 'Review local code changes with AI',
   short: 'rc',
@@ -288,360 +684,12 @@ export const reviewCodeChangesCommand = createCmd({
     },
   ],
   run: async ({ setup, scope, baseBranch, output }) => {
-    const runStartedAt = new Date();
-    const rootConfig = await loadConfig();
-    const config = rootConfig.codeReview ?? {};
-    validateConcurrencyPerProvider(config.concurrencyPerProvider);
-    const outputFile = output ?? config.reviewOutputPath ?? 'pr-review.md';
-    const logsDir = resolveLogsDir(config);
-
-    let setupConfig: ReviewSetupConfig | undefined = resolveSetup(
-      config,
+    await runLocalReviewChangesWorkflow({
       setup,
-    );
-    let setupLabel = setup;
-
-    if (setup && !setupConfig) {
-      const availableSetups = getAvailableSetups(config);
-      showErrorAndExit(
-        `Invalid setup: ${setup}. Valid options: ${availableSetups.join(', ')}`,
-      );
-    }
-
-    if (!setupConfig) {
-      const setupsToUse = config.setup ?? BUILT_IN_SETUP_OPTIONS;
-      const options = setupConfigsToOptions(setupsToUse);
-
-      const selectedSetup = await cliInput.select('Select the review setup', {
-        options,
-      });
-
-      setupLabel = selectedSetup;
-      setupConfig = resolveSetup(config, selectedSetup);
-
-      if (!setupConfig) {
-        showErrorAndExit(`Failed to resolve setup: ${selectedSetup}`);
-      }
-    }
-
-    let scopeConfig: ScopeConfig | undefined = resolveScope(config, scope);
-    let scopeLabel = scope;
-
-    if (scope && !scopeConfig) {
-      const availableScopes = getAvailableScopes(config);
-      showErrorAndExit(
-        `Invalid scope: ${scope}. Valid options: ${availableScopes.join(', ')}`,
-      );
-    }
-
-    if (!scopeConfig) {
-      const scopesToUse = config.scope ?? BUILT_IN_SCOPE_OPTIONS;
-      const options = scopeConfigsToOptions(scopesToUse);
-      const selectedScope = await cliInput.select('Select the review scope', {
-        options,
-      });
-      scopeLabel = selectedScope;
-      scopeConfig = resolveScope(config, selectedScope);
-
-      if (!scopeConfig) {
-        showErrorAndExit(`Failed to resolve scope: ${selectedScope}`);
-      }
-    }
-
-    const currentBranch = git.getCurrentBranch();
-    const diffSource = getScopeDiffSource(scopeConfig);
-    const useStaged = diffSource === 'staged';
-
-    let comparisonBaseRef: ResolvedComparisonBaseRef | null = null;
-    if (!useStaged) {
-      const selectedBaseBranch = await resolveBaseBranchForReview(
-        currentBranch,
-        config.baseBranch,
-        baseBranch,
-      );
-      comparisonBaseRef = await resolveComparisonBaseRef(selectedBaseBranch);
-    }
-
-    console.log('\n🔄 Fetching file lists...');
-    let scopeContext: ScopeContext;
-    try {
-      scopeContext = await loadScopeContext({
-        scopeConfig,
-        comparisonRef: comparisonBaseRef?.comparisonRef ?? null,
-      });
-    } catch (error) {
-      showErrorAndExit(
-        `Failed to load scope context for "${scopeConfig.id}": ${String(error)}`,
-      );
-    }
-
-    let scopeFiles: string[];
-    try {
-      scopeFiles = await scopeConfig.getFiles(scopeContext);
-    } catch (error) {
-      showErrorAndExit(
-        `Failed to resolve files for scope "${scopeConfig.id}": ${String(error)}`,
-      );
-    }
-
-    const excludePatterns = getExcludePatterns(config);
-    const changedFiles = applyExcludePatterns(scopeFiles, excludePatterns);
-
-    if (changedFiles.length === 0) {
-      showErrorAndExit(
-        `No files found for scope "${scopeLabel}"${excludePatterns ? ' after applying exclude patterns' : ''}`,
-      );
-    }
-
-    if (excludePatterns && scopeFiles.length !== changedFiles.length) {
-      const excludedCount = scopeFiles.length - changedFiles.length;
-      console.log(
-        `📂 Reviewing ${changedFiles.length} files (${excludedCount} files filtered out)`,
-      );
-    }
-
-    const sourceDescription =
-      useStaged ? 'staged changes' : (
-        `${currentBranch} vs ${comparisonBaseRef?.comparisonRef ?? 'unknown'}`
-      );
-
-    console.log(`\n🔄 Processing ${sourceDescription}...`);
-    if (comparisonBaseRef?.source === 'local') {
-      console.log(
-        `⚠️ Running against local base branch "${comparisonBaseRef.baseBranch}" because remote ref was unavailable.`,
-      );
-    }
-
-    console.log(
-      `📋 Using ${setupLabel} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
-    );
-
-    const prDiff = await getDiffForFiles(changedFiles, {
-      baseBranch: comparisonBaseRef?.comparisonRef ?? currentBranch,
-      excludeFiles: excludePatterns,
-      useStaged,
+      scope,
+      baseBranch,
+      output,
+      commandId: 'review-code-changes',
     });
-
-    const context: LocalReviewContext = {
-      type: 'local',
-      additionalInstructions: undefined,
-    };
-
-    if (!prDiff.trim()) {
-      console.log(
-        'ℹ️ No reviewable code changes found after filtering import/export-only changes.',
-      );
-      const skippedUsage = createZeroTokenUsage('validator-skipped');
-      const reviewContent = await formatValidatedReview(
-        {
-          summary:
-            'No reviewable code changes found after filtering import/export-only changes.',
-          issues: [],
-          usage: skippedUsage,
-        },
-        'local',
-        context,
-        currentBranch,
-        {
-          reviews: [],
-          validatorUsage: skippedUsage,
-        },
-      );
-      await writeReviewFile(outputFile, reviewContent);
-      await handleOutput(context, reviewContent, outputFile);
-      return;
-    }
-
-    const diffTokens = estimateTokenCount(prDiff);
-
-    if (diffTokens > MAX_DIFF_TOKENS) {
-      console.log(
-        `⚠️  Diff has ${formatNum(diffTokens)} tokens (max suggested: ${formatNum(MAX_DIFF_TOKENS)})`,
-      );
-
-      const shouldContinue = await cliInput.confirm(
-        'Continue anyway? Large diffs may result in less accurate reviews',
-        {
-          initial: false,
-        },
-      );
-
-      if (!shouldContinue) {
-        process.exit(1);
-      }
-    }
-
-    console.log(
-      `🔍 Running ${setupConfig.reviewers.length} independent reviews...`,
-    );
-
-    const reviewersByProvider = new Map<string, ProviderReviewer[]>();
-    for (const [index, model] of setupConfig.reviewers.entries()) {
-      const reviewerId = index + 1;
-      const providerId = getModelProviderId(model);
-
-      const providerReviewers = reviewersByProvider.get(providerId);
-      if (providerReviewers) {
-        providerReviewers.push({ reviewerId, model });
-      } else {
-        reviewersByProvider.set(providerId, [{ reviewerId, model }]);
-      }
-    }
-
-    console.log(
-      `📊 Running queues for ${reviewersByProvider.size} provider(s)`,
-    );
-
-    const providerQueuePromises: Promise<ProviderQueueResult>[] = [];
-    for (const [providerId, providerReviewers] of reviewersByProvider) {
-      const providerConcurrency = resolveProviderConcurrency(
-        config.concurrencyPerProvider,
-        providerId,
-      );
-      console.log(
-        `🔄 Provider "${providerId}": ${providerReviewers.length} reviewer(s), concurrency ${formatConcurrencyLimit(providerConcurrency)}`,
-      );
-
-      const queue = createAsyncQueueWithMeta<
-        IndividualReview,
-        { reviewerId: number; providerId: string }
-      >({ concurrency: providerConcurrency });
-
-      for (const reviewer of providerReviewers) {
-        void queue.resultifyAdd(
-          () =>
-            runSingleReview(
-              context,
-              null,
-              changedFiles,
-              prDiff,
-              reviewer.reviewerId,
-              reviewer.model,
-              config.reviewInstructionsPath,
-              config.includeAgentsFileInReviewPrompt,
-            ),
-          {
-            meta: { reviewerId: reviewer.reviewerId, providerId },
-          },
-        );
-      }
-
-      providerQueuePromises.push(
-        queue.onIdle().then(() => ({
-          providerId,
-          reviews: queue.completions.map((completion) => completion.value),
-          failures: queue.failures.map((failure) => ({
-            reviewerId: failure.meta.reviewerId,
-            error: failure.error,
-          })),
-        })),
-      );
-    }
-
-    const successfulReviews: IndividualReview[] = [];
-    const queueResults = await Promise.allSettled(providerQueuePromises);
-
-    for (const queueResult of queueResults) {
-      if (queueResult.status !== 'fulfilled') {
-        console.error('Provider queue failed:', queueResult.reason);
-        continue;
-      }
-
-      successfulReviews.push(...queueResult.value.reviews);
-      for (const failure of queueResult.value.failures) {
-        console.error(
-          `Review ${failure.reviewerId} failed on provider "${queueResult.value.providerId}":`,
-          failure.error,
-        );
-      }
-    }
-
-    successfulReviews.sort((a, b) => {
-      const aId =
-        typeof a.reviewerId === 'number' ?
-          a.reviewerId
-        : Number.POSITIVE_INFINITY;
-      const bId =
-        typeof b.reviewerId === 'number' ?
-          b.reviewerId
-        : Number.POSITIVE_INFINITY;
-      if (aId !== bId) {
-        return aId - bId;
-      }
-      return String(a.reviewerId).localeCompare(String(b.reviewerId));
-    });
-
-    if (successfulReviews.length === 0) {
-      showErrorAndExit('All reviewers failed - cannot proceed with review');
-    }
-
-    console.log('\n🔍 Running validator to consolidate findings...');
-    const validatedReview = await reviewValidator(
-      context,
-      successfulReviews,
-      null,
-      changedFiles,
-      prDiff,
-      undefined,
-      setupConfig.validator,
-      config.reviewInstructionsPath,
-    );
-    console.log(
-      `✅ Validation complete - found ${validatedReview.issues.length} validated issues`,
-    );
-    logValidatedIssueSummary(validatedReview);
-
-    const reviewsUsage = calculateReviewsUsage(successfulReviews);
-    const totalUsage = calculateTotalUsage([
-      ...successfulReviews.map((review) => review.usage),
-      validatedReview.usage,
-    ]);
-
-    logTokenUsageBreakdown(reviewsUsage, validatedReview.usage);
-
-    console.log(
-      dedent`
-        📊 Tokens:
-          Total: ${formatNum(totalUsage.totalTokens || 0)}
-          Input: ${formatNum(totalUsage.promptTokens || 0)}
-          Output: ${formatNum(totalUsage.completionTokens || 0)}
-          Reasoning: ${formatNum(totalUsage.reasoningTokens || 0)}
-      `,
-    );
-
-    console.log('📝 Formatting review...');
-    const reviewContent = await formatValidatedReview(
-      validatedReview,
-      'local',
-      context,
-      currentBranch,
-      {
-        reviews: successfulReviews,
-        validatorUsage: validatedReview.usage,
-      },
-    );
-
-    if (logsDir) {
-      const runLogsPath = await persistReviewRunLogs({
-        logsDir,
-        command: 'review-code-changes',
-        context,
-        setupId: setupLabel ?? setupConfig.reviewers.length.toString(),
-        scopeId: scopeConfig.id,
-        branchName: currentBranch,
-        runStartedAt,
-        runEndedAt: new Date(),
-        changedFiles,
-        prDiff,
-        reviews: successfulReviews,
-        validatedReview,
-        finalReviewMarkdown: reviewContent,
-        outputFilePath: outputFile,
-      });
-      console.log(`🗂️ Review logs saved to ${runLogsPath}`);
-    }
-
-    await writeReviewFile(outputFile, reviewContent);
-    await handleOutput(context, reviewContent, outputFile);
   },
 });
