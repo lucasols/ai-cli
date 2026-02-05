@@ -6,11 +6,15 @@ import type {
 
 export const DEFAULT_SCOPES = {
   all: {
-    label: 'all',
+    id: 'all',
+    label: 'All changes',
+    showFileCount: true,
     getFiles: (ctx: ScopeContext) => ctx.allFiles,
   },
   staged: {
-    label: 'staged',
+    id: 'staged',
+    label: 'Staged changes',
+    showFileCount: true,
     getFiles: (ctx: ScopeContext) => ctx.stagedFiles,
   },
 } as const satisfies Record<string, ScopeConfig>;
@@ -28,7 +32,7 @@ export const DEFAULT_SCOPES = {
  *   reviewCodeChanges: {
  *     scope: [
  *       ...BUILT_IN_SCOPE_OPTIONS,
- *       { label: 'myCustomScope', getFiles: (ctx) => ctx.allFiles.filter(...) },
+ *       { id: 'custom', label: 'My Custom Scope', getFiles: (ctx) => ctx.allFiles.filter(...) },
  *     ],
  *   },
  * });
@@ -38,34 +42,34 @@ export const BUILT_IN_SCOPE_OPTIONS: ScopeConfig[] =
   Object.values(DEFAULT_SCOPES);
 
 /**
- * Resolves a scope by name. Checks custom scopes first, then built-in defaults.
+ * Resolves a scope by id. Checks custom scopes first, then built-in defaults.
  * Returns undefined if no scope is specified (to trigger interactive selection).
  */
 export function resolveScope(
   config: ReviewCodeChangesConfig,
-  scopeLabel?: string,
+  scopeId?: string,
 ): ScopeConfig | undefined {
-  if (!scopeLabel) {
+  if (!scopeId) {
     return undefined;
   }
 
-  // First check custom scopes by label
-  const customScope = config.scope?.find((s) => s.label === scopeLabel);
+  // First check custom scopes by id
+  const customScope = config.scope?.find((s) => s.id === scopeId);
   if (customScope) {
     return customScope;
   }
 
   // Then check built-in defaults
-  return DEFAULT_SCOPES[scopeLabel as keyof typeof DEFAULT_SCOPES];
+  return DEFAULT_SCOPES[scopeId as keyof typeof DEFAULT_SCOPES];
 }
 
 /**
- * Get all available scope labels (built-in + custom).
+ * Get all available scope ids (built-in + custom).
  */
 export function getAvailableScopes(config: ReviewCodeChangesConfig): string[] {
   // If custom scopes are configured, only show those
   if (config.scope && config.scope.length > 0) {
-    return config.scope.map((s) => s.label);
+    return config.scope.map((s) => s.id);
   }
   // Otherwise show built-in defaults
   return Object.keys(DEFAULT_SCOPES);
@@ -94,4 +98,20 @@ export function tryGetFileCountSync(
   } catch {
     return null;
   }
+}
+
+/**
+ * Converts scope configs to CLI select options with file counts.
+ */
+export function scopeConfigsToOptions(
+  scopes: ScopeConfig[],
+  ctx: ScopeContext,
+): Array<{ value: string; label: string }> {
+  return scopes.map((s) => {
+    const fileCount = tryGetFileCountSync(s, ctx);
+    return {
+      value: s.id,
+      label: fileCount !== null ? `${s.label} (${fileCount} files)` : s.label,
+    };
+  });
 }

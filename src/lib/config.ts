@@ -19,7 +19,9 @@ export type CustomModelConfig = {
  * Allows full control over which models are used for each review phase.
  */
 export type SetupConfig = {
-  /** Name of this setup, used for selection via CLI --setup flag */
+  /** Identifier for this setup, used for selection via CLI --setup flag */
+  id: string;
+  /** Display label shown in UI */
   label: string;
   /** Models that perform parallel code reviews. At least one reviewer is required. */
   reviewers: CustomModelConfig[];
@@ -44,7 +46,9 @@ export type ScopeContext = {
  * Allows defining which files should be included in the review.
  */
 export type ScopeConfig = {
-  /** Name of this scope, used for selection via CLI --scope flag */
+  /** Identifier for this scope, used for selection via CLI --scope flag */
+  id: string;
+  /** Display label shown in UI */
   label: string;
   /** Function that receives available file lists and returns the files to review */
   getFiles: (ctx: ScopeContext) => string[] | Promise<string[]>;

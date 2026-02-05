@@ -21,13 +21,16 @@ import {
 } from '../shared/output.ts';
 import { reviewValidator, runSingleReview } from '../shared/reviewer.ts';
 import {
+  BUILT_IN_SCOPE_OPTIONS,
   getAvailableScopes,
   resolveScope,
-  tryGetFileCountSync,
+  scopeConfigsToOptions,
 } from '../shared/scopes.ts';
 import {
+  BUILT_IN_SETUP_OPTIONS,
   getAvailableSetups,
   resolveSetup,
+  setupConfigsToOptions,
   type ReviewSetupConfig,
 } from '../shared/setups.ts';
 import { getDiffForFiles, applyExcludePatterns } from '../shared/diff-utils.ts';
@@ -113,19 +116,8 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     if (!setupConfig) {
-      const builtInOptions = [
-        { value: 'light', label: 'Light - 1 GPT-5 reviewer' },
-        { value: 'medium', label: 'Medium - 2 GPT-5 reviewers' },
-        { value: 'heavy', label: 'Heavy - 4 GPT-5 reviewers' },
-      ];
-
-      const customOptions =
-        config.setup?.map((s) => ({
-          value: s.label,
-          label: s.label,
-        })) ?? [];
-
-      const options = customOptions.length > 0 ? customOptions : builtInOptions;
+      const setupsToUse = config.setup ?? BUILT_IN_SETUP_OPTIONS;
+      const options = setupConfigsToOptions(setupsToUse);
 
       const selectedSetup = await cliInput.select('Select the review setup', {
         options,
@@ -158,28 +150,8 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     if (!scopeConfig) {
-      const builtInOptions = [
-        {
-          value: 'all',
-          label: `All changes (${scopeContext.allFiles.length} files)`,
-        },
-        {
-          value: 'staged',
-          label: `Staged changes (${scopeContext.stagedFiles.length} files)`,
-        },
-      ];
-
-      const customOptions =
-        config.scope?.map((s) => {
-          const fileCount = tryGetFileCountSync(s, scopeContext);
-          return {
-            value: s.label,
-            label:
-              fileCount !== null ? `${s.label} (${fileCount} files)` : s.label,
-          };
-        }) ?? [];
-
-      const options = customOptions.length > 0 ? customOptions : builtInOptions;
+      const scopesToUse = config.scope ?? BUILT_IN_SCOPE_OPTIONS;
+      const options = scopeConfigsToOptions(scopesToUse, scopeContext);
 
       const selectedScope = await cliInput.select('Select the review scope', {
         options,

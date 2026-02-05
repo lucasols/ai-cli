@@ -20,7 +20,8 @@ export default defineConfig({
     // setup: [
     //   ...BUILT_IN_SETUP_OPTIONS, // spread built-in options if you want to keep them
     //   {
-    //     label: 'myCustomSetup',
+    //     id: 'myCustomSetup',
+    //     label: 'My Custom Setup - 1 GPT-5 reviewer',
     //     reviewers: [
     //       { label: 'GPT-5', model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
     //     ],
@@ -35,11 +36,13 @@ export default defineConfig({
     // scope: [
     //   ...BUILT_IN_SCOPE_OPTIONS, // spread built-in options if you want to keep them
     //   {
-    //     label: 'src-only',
+    //     id: 'src-only',
+    //     label: 'Source files only',
     //     getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')),
     //   },
     //   {
-    //     label: 'no-tests',
+    //     id: 'no-tests',
+    //     label: 'Exclude tests',
     //     getFiles: (ctx) => ctx.allFiles.filter((f) => !f.includes('.test.')),
     //   },
     // ],

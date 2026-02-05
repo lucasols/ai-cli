@@ -100,38 +100,38 @@ function convertCustomSetup(
 }
 
 /**
- * Resolves a setup by name. Checks custom setups first, then built-in presets.
+ * Resolves a setup by id. Checks custom setups first, then built-in presets.
  * Returns undefined if no setup is specified (to trigger interactive selection).
  */
 export function resolveSetup(
   config: ReviewCodeChangesConfig,
-  cliSetup?: string,
+  setupId?: string,
 ): ReviewSetupConfig | undefined {
-  if (!cliSetup) {
+  if (!setupId) {
     return undefined;
   }
 
-  // First check custom setups by label
-  const customSetup = config.setup?.find((s) => s.label === cliSetup);
+  // First check custom setups by id
+  const customSetup = config.setup?.find((s) => s.id === setupId);
   if (customSetup) {
     return convertCustomSetup(customSetup, config);
   }
 
   // Then check built-in presets
-  if (cliSetup in reviewSetupConfigs) {
-    return reviewSetupConfigs[cliSetup as ReviewSetup];
+  if (setupId in reviewSetupConfigs) {
+    return reviewSetupConfigs[setupId as ReviewSetup];
   }
 
   return undefined;
 }
 
 /**
- * Get all available setup labels (built-in + custom).
+ * Get all available setup ids (built-in + custom).
  */
 export function getAvailableSetups(config: ReviewCodeChangesConfig): string[] {
   // If custom setups are configured, only show those
   if (config.setup && config.setup.length > 0) {
-    return config.setup.map((s) => s.label);
+    return config.setup.map((s) => s.id);
   }
   // Otherwise show built-in presets
   return Object.keys(reviewSetupConfigs);
@@ -156,20 +156,15 @@ export function getAvailableSetups(config: ReviewCodeChangesConfig): string[] {
  * });
  * ```
  */
-export const BUILT_IN_SETUP_OPTIONS: Record<
-  'veryLight' | 'light' | 'medium' | 'heavy',
-  SetupConfig
-> = {
-  veryLight: {
-    label: 'veryLight',
-    reviewers: [{ model: gpt5MiniModel.model }],
-  },
+export const DEFAULT_SETUPS = {
   light: {
-    label: 'light',
+    id: 'light',
+    label: 'Light - 1 GPT-5 reviewer',
     reviewers: [{ model: gpt5Model.model }],
   },
   medium: {
-    label: 'medium',
+    id: 'medium',
+    label: 'Medium - 2 GPT-5 reviewers',
     reviewers: [
       {
         model: gpt5ModelHigh.model,
@@ -182,7 +177,8 @@ export const BUILT_IN_SETUP_OPTIONS: Record<
     ],
   },
   heavy: {
-    label: 'heavy',
+    id: 'heavy',
+    label: 'Heavy - 4 GPT-5 reviewers',
     reviewers: [
       {
         model: gpt5ModelHigh.model,
@@ -202,4 +198,19 @@ export const BUILT_IN_SETUP_OPTIONS: Record<
       },
     ],
   },
-};
+} as const satisfies Record<string, SetupConfig>;
+
+export const BUILT_IN_SETUP_OPTIONS: SetupConfig[] =
+  Object.values(DEFAULT_SETUPS);
+
+/**
+ * Converts setup configs to CLI select options.
+ */
+export function setupConfigsToOptions(
+  setups: SetupConfig[],
+): Array<{ value: string; label: string }> {
+  return setups.map((s) => ({
+    value: s.id,
+    label: s.label,
+  }));
+}
