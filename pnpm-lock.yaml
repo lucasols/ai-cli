@@ -21,8 +21,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(@types/node@24.3.0)
       '@ls-stack/utils':
-        specifier: ^3.34.1
-        version: 3.34.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^3.68.0
+        version: 3.68.0
       ai:
         specifier: ^5.0.113
         version: 5.0.126(zod@4.3.6)
@@ -498,6 +498,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.30':
     resolution: {integrity: sha512-GQ7Nw5G2lTu/BtHTKfXhKHok2WGetd4XYcVKGx00SjAk8GMwgJM3zr6zORiPGuOE+/vkc90KtTosSSvaCjKb2Q==}
 
+  '@leeoniya/ufuzzy@1.0.19':
+    resolution: {integrity: sha512-0pikDeYt0IHEUPza5RTCDXc/17S1pTrYnReEMp8Aa6k1ovzw5QdZLwicW8TjljwEZRb6oYag0xmALohrcq/yOQ==}
+
   '@ls-stack/cli@0.1.0':
     resolution: {integrity: sha512-apdLt4RPEbTbC4hrQ+kydaviy0oQAIkPCS6tn1K22Rluv4POMM9e9TyVb340NOC4FBdKVXHobwnCfbYR9u+igQ==}
     engines: {node: '>=21.5.0'}
@@ -512,8 +515,8 @@ packages:
     peerDependencies:
       eslint: ^9.9.1
 
-  '@ls-stack/utils@3.34.1':
-    resolution: {integrity: sha512-mqrUSInvXEY2FaUfYrP4JM70i+ka9w4U9wnq9+BM1OMu/YwJtWdJ6KonU7SjqusEeTxVOt5xYlXLTiCHidbb1A==}
+  '@ls-stack/utils@3.68.0':
+    resolution: {integrity: sha512-FauX6JhE8VLo/2ZB/doiUOxo2e2TD6ZpvN1eUe0+vKTEypbZaWnZ/TX0CVFS0prJvEjmz0jnMzF9fRwlBs9guQ==}
     engines: {node: '>=20.0.0'}
 
   '@napi-rs/wasm-runtime@1.1.1':
@@ -1150,12 +1153,9 @@ packages:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
     engines: {node: '>=18.0.0'}
 
-  evtmitter@0.3.3:
-    resolution: {integrity: sha512-McEl41bI+g5gEU/vQQ7eJfTzdKtCeYGwrvow+ktEp47m9/OVVQyJy9E5lKhsMIZws9uURsXi4nyc8ZmL7dX7uQ==}
+  evtmitter@1.0.2:
+    resolution: {integrity: sha512-Y3LObkozuxG0aCdzhMFoxbZyl9osl86mK5B/mIYpRaVsYf7I5bssOFYNBCFnoAgq0A6PkFjxpuojGpZu01w8Nw==}
     engines: {node: '>=14.6.0'}
-    peerDependencies:
-      react: ^18.2.0
-      react-dom: ^18.2.0
 
   expect-type@1.2.2:
     resolution: {integrity: sha512-JhFGDVJ7tmDJItKhYgJCGLOWjuK9vPxiXoUFLwLDc99NlmklilbiQJwoctZtt13+xMw91MCk/REan6MWHqDjyA==}
@@ -1380,10 +1380,6 @@ packages:
   lodash.merge@4.6.2:
     resolution: {integrity: sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ==}
 
-  loose-envify@1.4.0:
-    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
-    hasBin: true
-
   loupe@3.2.0:
     resolution: {integrity: sha512-2NCfZcT5VGVNX9mSZIxLRkEAegDGBpuQZBy13desuHeVORmBDyAET4TkJr4SjqQy3A8JDofMN6LpkK8Xcm/dlw==}
 
@@ -1526,15 +1522,6 @@ packages:
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
-  react-dom@18.3.1:
-    resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
-    peerDependencies:
-      react: ^18.3.1
-
-  react@18.3.1:
-    resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
-    engines: {node: '>=0.10.0'}
-
   read-pkg-up@7.0.1:
     resolution: {integrity: sha512-zK0TB7Xd6JpCLmlLmufqykGE+/TlOePD6qKClNW7hHDKFh/J7/7gCWGR7joEQEW1bKq3a3yUZSObOoWLFQ4ohg==}
     engines: {node: '>=8'}
@@ -1606,9 +1593,6 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
-
-  scheduler@0.23.2:
-    resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
 
   semver@5.7.2:
     resolution: {integrity: sha512-cBznnQ9KjJqU67B52RMC65CMarK2600WFnbkcaiwWq3xy/5haFJlshgnpjovMVJ+Hff49d8GEn0b87C5pDQ10g==}
@@ -1693,10 +1677,6 @@ packages:
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
-
-  t-result@0.3.0:
-    resolution: {integrity: sha512-i8+5uNuxj9xV1SGBM10mRVc8zPmFYwqLoBpuHWtM16uelDy6Iox0lM2Ns+ZN76GGwYUF1bz5fKMOlqeiM6qVCQ==}
-    engines: {node: '>=23.0.0'}
 
   t-result@0.6.1:
     resolution: {integrity: sha512-a1aZsIAFYpjb0J51tZfrS93xxpTp4WY70EhZBCKcHylh/y/tF4uWXIyJUoDQKcg88lDdPlAcwuzE5JAC/4MVZg==}
@@ -2283,6 +2263,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@leeoniya/ufuzzy@1.0.19': {}
+
   '@ls-stack/cli@0.1.0(@types/node@24.3.0)':
     dependencies:
       '@inquirer/prompts': 7.10.1(@types/node@24.3.0)
@@ -2315,13 +2297,11 @@ snapshots:
       - supports-color
       - typescript
 
-  '@ls-stack/utils@3.34.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@ls-stack/utils@3.68.0':
     dependencies:
-      evtmitter: 0.3.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      t-result: 0.3.0
-    transitivePeerDependencies:
-      - react
-      - react-dom
+      '@leeoniya/ufuzzy': 1.0.19
+      evtmitter: 1.0.2
+      t-result: 0.6.1
 
   '@napi-rs/wasm-runtime@1.1.1':
     dependencies:
@@ -2960,10 +2940,7 @@ snapshots:
 
   eventsource-parser@3.0.6: {}
 
-  evtmitter@0.3.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
+  evtmitter@1.0.2: {}
 
   expect-type@1.2.2: {}
 
@@ -3151,10 +3128,6 @@ snapshots:
 
   lodash.merge@4.6.2: {}
 
-  loose-envify@1.4.0:
-    dependencies:
-      js-tokens: 4.0.0
-
   loupe@3.2.0: {}
 
   magic-string@0.30.17:
@@ -3271,16 +3244,6 @@ snapshots:
 
   queue-microtask@1.2.3: {}
 
-  react-dom@18.3.1(react@18.3.1):
-    dependencies:
-      loose-envify: 1.4.0
-      react: 18.3.1
-      scheduler: 0.23.2
-
-  react@18.3.1:
-    dependencies:
-      loose-envify: 1.4.0
-
   read-pkg-up@7.0.1:
     dependencies:
       find-up: 4.1.0
@@ -3384,10 +3347,6 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  scheduler@0.23.2:
-    dependencies:
-      loose-envify: 1.4.0
-
   semver@5.7.2: {}
 
   semver@7.7.2: {}
@@ -3457,8 +3416,6 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
-
-  t-result@0.3.0: {}
 
   t-result@0.6.1: {}
 

@@ -8,6 +8,7 @@ import {
   loadConfig,
   resolveBaseBranch,
 } from '../../lib/config.ts';
+import { formatNum, removeImportOnlyChangesFromDiff } from '../../lib/diff.ts';
 import { git } from '../../lib/git.ts';
 import { github, type PRData } from '../../lib/github.ts';
 import { runCmdSilentUnwrap, showErrorAndExit } from '../../lib/shell.ts';
@@ -31,56 +32,6 @@ import type {
 } from './types.ts';
 
 const MAX_DIFF_TOKENS = 60_000;
-
-function formatNum(num: number): string {
-  return num.toLocaleString('en-US');
-}
-
-function removeImportOnlyChangesFromDiff(diff: string): string {
-  const fileSections = diff.split(/(?=^diff --git)/m).filter(Boolean);
-  const filteredSections: string[] = [];
-
-  for (const section of fileSections) {
-    if (!section.startsWith('diff --git')) continue;
-
-    const lines = section.split('\n');
-    const changedLines = lines.filter(
-      (line) =>
-        (line.startsWith('+') || line.startsWith('-')) &&
-        !line.startsWith('+++') &&
-        !line.startsWith('---'),
-    );
-
-    if (changedLines.length === 0) {
-      filteredSections.push(section);
-      continue;
-    }
-
-    const hasNonImportChanges = changedLines.some((line) => {
-      const cleanLine = line.slice(1).trim();
-
-      if (!cleanLine) return false;
-
-      const isImportOrExport =
-        cleanLine.startsWith('import ') ||
-        cleanLine.startsWith('export ') ||
-        cleanLine.startsWith('} from ') ||
-        cleanLine.includes('= require(') ||
-        cleanLine.includes('import(') ||
-        /^import\s*{/.test(cleanLine) ||
-        /^export\s*{/.test(cleanLine) ||
-        (cleanLine.startsWith('type ') && cleanLine.includes('import('));
-
-      return !isImportOrExport;
-    });
-
-    if (hasNonImportChanges) {
-      filteredSections.push(section);
-    }
-  }
-
-  return filteredSections.join('\n');
-}
 
 async function fetchPRData(
   prNumber: string | null,
