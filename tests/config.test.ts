@@ -21,7 +21,7 @@ describe('config', () => {
     });
 
     expect(config).toEqual({
-      reviewCodeChanges: {
+      codeReview: {
         baseBranch: 'main',
         codeReviewDiffExcludePatterns: ['*.md'],
       },

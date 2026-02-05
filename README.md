@@ -1,14 +1,15 @@
 # ai-cmds
 
-AI-powered code review CLI tool that uses OpenAI GPT-5 and Google Gemini models to review code changes. Supports reviewing PRs in CI environments or local changes during development.
+AI-powered CLI tool that uses OpenAI and Google Gemini models to review code changes and create PRs with AI-generated descriptions.
 
 ## Features
 
-- Multiple AI models: GPT-5, GPT-5-mini, Gemini 2.5 Pro, Gemini 2.5 Flash Lite
+- Multiple AI models: GPT-5, GPT-5-mini, GPT-4o-mini, Gemini 2.5 Pro, Gemini 2.0 Flash
 - Configurable review setups from very light to heavy
 - Custom setups with full control over reviewer, validator, and formatter models
-- Two commands: `review-code-changes` for local development, `review-pr` for CI
+- Three commands: `review-code-changes` for local development, `review-pr` for CI, `create-pr` for PR creation
 - Parallel reviews with validation pass for higher accuracy
+- AI-generated PR titles and descriptions
 - Automatic filtering of import-only changes
 - Custom review instructions support
 - Token usage tracking and cost awareness
@@ -88,6 +89,40 @@ When running in GitHub Actions mode, the tool automatically checks if there's a 
 - Runs in parallel with regular reviews for efficiency
 - Use `--skip-previous-check` to disable this feature
 
+### `create-pr` - Create PR with AI Description
+
+Create a GitHub PR with an AI-generated title and description based on your changes.
+
+```bash
+# Create PR with AI-generated description
+ai-cmds create-pr
+
+# Create PR against a specific base branch
+ai-cmds create-pr --base develop
+
+# Skip AI generation, use template only
+ai-cmds create-pr --no-ai
+
+# Preview without opening browser
+ai-cmds create-pr --dry-run
+
+# Override the PR title
+ai-cmds create-pr --title "Fix login validation"
+```
+
+**Arguments:**
+- `--base` - Base branch for the PR (if not specified, uses config or prompts)
+- `--no-ai` - Skip AI generation and use template only
+- `--dry-run` - Preview PR content without opening browser
+- `--title` - Override the AI-generated PR title
+
+**Behavior:**
+- Checks if a PR already exists for the current branch
+- Automatically pushes the branch if not already pushed
+- Uses PR template from `.github/pull_request_template.md` (configurable)
+- Supports `<!-- AI_DESCRIPTION -->` marker in templates for AI content placement
+- Opens GitHub compare URL with pre-filled title and body
+
 ## Review Setups
 
 | Setup | Reviewers | Description |
@@ -140,10 +175,15 @@ Create `ai-cli.config.ts` in your project root:
 import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     baseBranch: 'main',
     codeReviewDiffExcludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
     reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',
+  },
+  createPR: {
+    baseBranch: 'main',
+    diffExcludePatterns: ['pnpm-lock.yaml'],
+    descriptionInstructions: 'Always mention Jira ticket if present in branch name',
   },
 });
 ```
@@ -174,9 +214,10 @@ By default, `.env` is loaded automatically before the config file is imported, a
 | Option | Description |
 |--------|-------------|
 | `loadDotEnv` | Controls `.env` file loading. `true` (default): load `.env`, `false`: skip, `string`: additional file path, `string[]`: multiple files (later override earlier) |
-| `reviewCodeChanges` | Configuration for the review commands (see below) |
+| `codeReview` | Configuration for the review commands (see below) |
+| `createPR` | Configuration for the create-pr command (see below) |
 
-#### `reviewCodeChanges` Options
+#### `codeReview` Options
 
 | Option | Description |
 |--------|-------------|
@@ -189,13 +230,24 @@ By default, `.env` is loaded automatically before the config file is imported, a
 | `defaultFormatter` | Default formatter model for custom setups |
 | `logsDir` | Directory for logs (can also use `AI_CLI_LOGS_DIR` env var) |
 
+#### `createPR` Options
+
+| Option | Description |
+|--------|-------------|
+| `templatePath` | Path to PR template file (default: `.github/pull_request_template.md`) |
+| `baseBranch` | Base branch for the PR. Can be a string or function `(currentBranch) => string` |
+| `preferredProvider` | Preferred AI provider: `'openai'` or `'google'` (auto-detects if not set) |
+| `descriptionInstructions` | Custom instructions for AI description generation |
+| `diffExcludePatterns` | Glob patterns for files to exclude from diff |
+| `maxDiffTokens` | Maximum tokens from diff to include in AI prompt (default: 50000) |
+
 ### Dynamic Base Branch
 
 The `baseBranch` option can be a function that receives the current branch name:
 
 ```typescript
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     baseBranch: (currentBranch) =>
       currentBranch.startsWith('release/') ? 'main' : 'develop',
   },
@@ -212,7 +264,7 @@ import { openai } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     setup: [
       {
         label: 'myCustomSetup',
@@ -243,7 +295,7 @@ To include built-in options alongside your custom setups, use `BUILT_IN_SETUP_OP
 import { defineConfig, BUILT_IN_SETUP_OPTIONS } from 'ai-cmds';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     setup: [
       ...BUILT_IN_SETUP_OPTIONS, // includes light, medium, heavy
       { id: 'myCustomSetup', label: 'My Custom Setup', reviewers: [...] },
@@ -267,7 +319,7 @@ Define custom scopes to control which files are included in the review. **When c
 import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     scope: [
       {
         id: 'src-only',
@@ -294,7 +346,7 @@ To include built-in options alongside your custom scopes, use `BUILT_IN_SCOPE_OP
 import { defineConfig, BUILT_IN_SCOPE_OPTIONS } from 'ai-cmds';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     scope: [
       ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged, globs, unViewed
       { id: 'src-only', label: 'Source files only', getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')) },

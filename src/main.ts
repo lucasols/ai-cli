@@ -1,4 +1,5 @@
 import { createCLI } from '@ls-stack/cli';
+import { createPRCommand } from './commands/create-pr/index.ts';
 import { reviewCodeChangesCommand } from './commands/review-code-changes/index.ts';
 import { reviewPRCommand } from './commands/review-pr/index.ts';
 
@@ -7,5 +8,6 @@ await createCLI(
   {
     'review-code-changes': reviewCodeChangesCommand,
     'review-pr': reviewPRCommand,
+    'create-pr': createPRCommand,
   },
 );

@@ -1,6 +1,7 @@
 export {
   defineConfig,
   type Config,
+  type CreatePRConfig,
   type CustomModelConfig,
   type ReviewCodeChangesConfig,
   type ScopeConfig,

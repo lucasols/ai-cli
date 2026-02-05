@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { runCmd, runCmdUnwrap } from './shell.ts';
+import { runCmd, runCmdSilentUnwrap, runCmdUnwrap } from './shell.ts';
 import { git } from './git.ts';
 
 const prDataSchema = z.object({
@@ -313,6 +313,76 @@ export function parsePreviousReviewIssues(
   return content;
 }
 
+const existingPRSchema = z.object({
+  state: z.string(),
+  url: z.string(),
+  number: z.number(),
+});
+
+export type ExistingPR = z.infer<typeof existingPRSchema>;
+
+export async function checkExistingPR(
+  branch: string,
+): Promise<ExistingPR | null> {
+  try {
+    const result = await runCmdSilentUnwrap([
+      'gh',
+      'pr',
+      'view',
+      branch,
+      '--json',
+      'state,url,number',
+    ]);
+    const parsed = existingPRSchema.parse(JSON.parse(result));
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function checkBranchPushed(branch: string): Promise<boolean> {
+  try {
+    await runCmdSilentUnwrap([
+      'git',
+      'rev-parse',
+      '--verify',
+      `origin/${branch}`,
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function pushBranch(branch: string): Promise<void> {
+  await runCmdUnwrap(['git', 'push', '-u', 'origin', branch]);
+}
+
+export type CompareUrlParams = {
+  owner: string;
+  repo: string;
+  baseBranch: string;
+  headBranch: string;
+  title: string;
+  body: string;
+};
+
+export function buildCompareUrl(params: CompareUrlParams): string {
+  const { owner, repo, baseBranch, headBranch, title, body } = params;
+  const baseUrl = `https://github.com/${owner}/${repo}/compare/${baseBranch}...${headBranch}`;
+  const queryParams = new URLSearchParams({
+    expand: '1',
+    title,
+    body,
+  });
+  return `${baseUrl}?${queryParams.toString()}`;
+}
+
+export async function getRepoUrl(): Promise<string> {
+  const { owner, repo } = await git.getRepoInfo();
+  return `https://github.com/${owner}/${repo}`;
+}
+
 export const github = {
   getPRData,
   getChangedFiles,
@@ -324,4 +394,9 @@ export const github = {
   getUnviewedPRFiles,
   getLatestPRReviewComment,
   parsePreviousReviewIssues,
+  checkExistingPR,
+  checkBranchPushed,
+  pushBranch,
+  buildCompareUrl,
+  getRepoUrl,
 };
