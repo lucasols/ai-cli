@@ -1,22 +1,9 @@
-import { createCLI, createCmd } from './createCli.ts';
+import { createCLI } from '@ls-stack/cli';
+import { reviewCodeCommand } from './commands/review-code/index.ts';
 
 await createCLI(
-  { name: '✨ ai-cli', baseCmd: 'ai-cli' },
+  { name: '✨ ai-cmds', baseCmd: 'ai-cmds' },
   {
-    'review-pr': createCmd({
-      description: 'Review a pull request with AI',
-      short: 'rpr',
-      args: {
-        pr: {
-          type: 'positional-number',
-          name: 'pr',
-          description: 'The pull request to review',
-        },
-      },
-      examples: [{ args: ['123'], description: 'Review pull request 123' }],
-      run: async () => {
-        console.log('Reviewing pull request');
-      },
-    }),
+    'review-code': reviewCodeCommand,
   },
 );

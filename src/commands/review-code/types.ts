@@ -1,0 +1,73 @@
+import type { JSONValue, LanguageModel } from 'ai';
+
+export type Model = {
+  model: LanguageModel;
+  config?: {
+    providerOptions?: Record<string, JSONValue>;
+    topP?: number | false;
+    temperature?: number;
+  };
+};
+
+export type PRReviewContext = {
+  prNumber: string | null;
+  additionalInstructions?: string;
+  mode: 'local' | 'gh-actions';
+  isTestGhMode: boolean;
+};
+
+export type TokenUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  reasoningTokens: number | undefined;
+  model: string;
+};
+
+export type IndividualReview = {
+  reviewerId: number | 'previous-review-checker';
+  content: string;
+  usage: TokenUsage;
+};
+
+export type ReviewIssue = {
+  category:
+    | 'critical'
+    | 'possible'
+    | 'suggestion'
+    | 'not-applicable-or-false-positive';
+  files: { path: string; line: number | null }[];
+  description: string;
+  currentCode: string | null;
+  suggestedFix: string | null;
+};
+
+export type ValidatedReview = {
+  issues: ReviewIssue[];
+  summary: string;
+  usage: TokenUsage;
+  formatterUsage: TokenUsage;
+};
+
+export type PRData = {
+  title: string;
+  changedFiles: number;
+  baseRefName: string;
+  headRefName: string;
+  author: { login: string };
+};
+
+export type GeneralPRComment = {
+  author: string;
+  body: string;
+  createdAt: string;
+};
+
+export type ReviewSetup =
+  | 'veryLight'
+  | 'lightGoogle'
+  | 'mediumGoogle'
+  | 'light'
+  | 'medium'
+  | 'heavy';
+export type ReviewScope = 'all' | 'staged' | 'pr';
