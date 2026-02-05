@@ -9,8 +9,12 @@ export {
   type SetupConfig,
 } from './lib/config.ts';
 
-export { BUILT_IN_SETUP_OPTIONS } from './commands/shared/setups.ts';
 export {
   BUILT_IN_SCOPE_OPTIONS,
   DEFAULT_SCOPES,
 } from './commands/shared/scopes.ts';
+export { BUILT_IN_SETUP_OPTIONS } from './commands/shared/setups.ts';
+
+export { createPRCommand } from './commands/create-pr/index.ts';
+export { reviewCodeChangesCommand } from './commands/review-code-changes/index.ts';
+export { reviewPRCommand } from './commands/review-pr/index.ts';
