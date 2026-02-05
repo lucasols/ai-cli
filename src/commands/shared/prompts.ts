@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs';
 import { dedent } from '@ls-stack/utils/dedent';
 import { git } from '../../lib/git.ts';
 import type {
-  PRReviewContext,
+  ReviewContext,
   PRData,
   IndividualReview,
   GeneralPRComment,
@@ -159,17 +159,17 @@ Minor improvements that could enhance code quality (e.g., renames, refactorings)
 `;
 
 function getPromptCacheableData(
-  context: PRReviewContext,
+  context: ReviewContext,
   prData: PRData | null,
   changedFiles: string[],
   prDiff: string,
 ) {
   const contextSection =
-    prData ?
+    prData && context.type === 'pr' ?
       `
 <pr_context>
 <pr_author>${prData.author.login}</pr_author>
-${context.prNumber ? `<pr_number>${context.prNumber}</pr_number>` : ''}
+<pr_number>${context.prNumber}</pr_number>
 ${context.additionalInstructions ? `<additional_instructions>${context.additionalInstructions}</additional_instructions>` : ''}
 </pr_context>
 
@@ -196,7 +196,7 @@ ${prDiff}
 }
 
 export function createReviewPrompt(
-  context: PRReviewContext,
+  context: ReviewContext,
   prData: PRData | null,
   changedFiles: string[],
   prDiff: string,
@@ -293,7 +293,7 @@ function formatHumanCommentsForPrompt(
 }
 
 export function createValidationPrompt(
-  context: PRReviewContext,
+  context: ReviewContext,
   reviews: IndividualReview[],
   prData: PRData | null,
   changedFiles: string[],

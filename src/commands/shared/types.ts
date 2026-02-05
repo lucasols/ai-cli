@@ -10,12 +10,27 @@ export type Model = {
   };
 };
 
-export type PRReviewContext = {
-  prNumber: string | null;
+export type LocalReviewContext = {
+  type: 'local';
   additionalInstructions?: string;
-  mode: 'local' | 'gh-actions';
-  isTestGhMode: boolean;
 };
+
+export type PRReviewContext = {
+  type: 'pr';
+  prNumber: string;
+  mode: 'gh-actions' | 'test';
+  additionalInstructions?: string;
+};
+
+export type ReviewContext = LocalReviewContext | PRReviewContext;
+
+export function isPRContext(ctx: ReviewContext): ctx is PRReviewContext {
+  return ctx.type === 'pr';
+}
+
+export function isLocalContext(ctx: ReviewContext): ctx is LocalReviewContext {
+  return ctx.type === 'local';
+}
 
 export type TokenUsage = {
   promptTokens: number;
@@ -65,4 +80,4 @@ export type GeneralPRComment = {
 };
 
 export type ReviewSetup = 'light' | 'medium' | 'heavy';
-export type ReviewScope = 'all' | 'staged' | 'pr';
+export type ReviewScope = 'all' | 'staged';

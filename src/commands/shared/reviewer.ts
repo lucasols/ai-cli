@@ -10,7 +10,7 @@ import {
 import { createReviewPrompt, createValidationPrompt } from './prompts.ts';
 import type {
   Model,
-  PRReviewContext,
+  ReviewContext,
   PRData,
   IndividualReview,
   ValidatedReview,
@@ -32,7 +32,7 @@ function getProviderId(model: Model['model']): string {
 }
 
 export async function runSingleReview(
-  context: PRReviewContext,
+  context: ReviewContext,
   prData: PRData | null,
   changedFiles: string[],
   prDiff: string,
@@ -133,7 +133,7 @@ const validatedReviewSchema = z.object({
 });
 
 export async function reviewValidator(
-  context: PRReviewContext,
+  context: ReviewContext,
   reviews: IndividualReview[],
   prData: PRData | null,
   changedFiles: string[],

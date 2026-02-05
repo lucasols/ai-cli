@@ -8,8 +8,8 @@ export {
   type SetupConfig,
 } from './lib/config.ts';
 
-export { BUILT_IN_SETUP_OPTIONS } from './commands/review-code-changes/setups.ts';
+export { BUILT_IN_SETUP_OPTIONS } from './commands/shared/setups.ts';
 export {
   BUILT_IN_SCOPE_OPTIONS,
   DEFAULT_SCOPES,
-} from './commands/review-code-changes/scopes.ts';
+} from './commands/shared/scopes.ts';

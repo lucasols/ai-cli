@@ -1,7 +1,6 @@
 import { cliInput, createCmd } from '@ls-stack/cli';
 import { dedent } from '@ls-stack/utils/dedent';
 import { writeFile } from 'fs/promises';
-import path from 'path';
 import { estimateTokenCount } from 'tokenx';
 import {
   getExcludePatterns,
@@ -10,9 +9,8 @@ import {
   type ScopeConfig,
   type ScopeContext,
 } from '../../lib/config.ts';
-import { formatNum, removeImportOnlyChangesFromDiff } from '../../lib/diff.ts';
+import { formatNum } from '../../lib/diff.ts';
 import { git } from '../../lib/git.ts';
-import { github, type PRData } from '../../lib/github.ts';
 import { runCmdSilentUnwrap, showErrorAndExit } from '../../lib/shell.ts';
 import {
   calculateReviewsUsage,
@@ -20,34 +18,24 @@ import {
   formatValidatedReview,
   handleOutput,
   logTokenUsageBreakdown,
-} from './output.ts';
-import { reviewValidator, runSingleReview } from './reviewer.ts';
+} from '../shared/output.ts';
+import { reviewValidator, runSingleReview } from '../shared/reviewer.ts';
 import {
   getAvailableScopes,
   resolveScope,
   tryGetFileCountSync,
-} from './scopes.ts';
+} from '../shared/scopes.ts';
 import {
   getAvailableSetups,
   resolveSetup,
   type ReviewSetupConfig,
-} from './setups.ts';
-import type { IndividualReview, PRReviewContext } from './types.ts';
+} from '../shared/setups.ts';
+import { getDiffForFiles, applyExcludePatterns } from '../shared/diff-utils.ts';
+import type { IndividualReview, LocalReviewContext } from '../shared/types.ts';
 
 const MAX_DIFF_TOKENS = 60_000;
 
-/**
- * Fetches all file lists needed for scope context.
- * Returns staged files, PR files (if PR number provided), and all changed files vs base branch.
- */
-async function fetchAllFileLists(
-  prNumber: string | null,
-  baseBranch: string,
-): Promise<{
-  prData: PRData | null;
-  scopeContext: ScopeContext;
-}> {
-  // Fetch staged files
+async function fetchLocalFileLists(baseBranch: string): Promise<ScopeContext> {
   const stagedFilesPromise = runCmdSilentUnwrap([
     'git',
     'diff',
@@ -55,7 +43,6 @@ async function fetchAllFileLists(
     '--name-only',
   ]).then((output) => output.trim().split('\n').filter(Boolean));
 
-  // Fetch all changed files vs base branch
   const allFilesPromise = (async () => {
     await runCmdSilentUnwrap([
       'git',
@@ -75,112 +62,27 @@ async function fetchAllFileLists(
     return output.trim().split('\n').filter(Boolean);
   })();
 
-  // Fetch PR data and files if PR number provided
-  let prData: PRData | null = null;
-  let prFiles: string[] | null = null;
-
-  if (prNumber) {
-    [prData, prFiles] = await Promise.all([
-      github.getPRData(prNumber),
-      github.getChangedFiles(prNumber),
-    ]);
-  }
-
   const [stagedFiles, allFiles] = await Promise.all([
     stagedFilesPromise,
     allFilesPromise,
   ]);
 
-  return {
-    prData,
-    scopeContext: {
-      stagedFiles,
-      // Use PR files when PR is provided, otherwise use all changed files vs base
-      allFiles: prFiles ?? allFiles,
-    },
-  };
-}
-
-/**
- * Gets the diff for the selected files.
- */
-async function getDiffForFiles(
-  files: string[],
-  options: {
-    baseBranch: string;
-    excludeFiles?: string[];
-    useStaged: boolean;
-  },
-): Promise<string> {
-  const { baseBranch, excludeFiles, useStaged } = options;
-
-  if (useStaged) {
-    const rawDiff = await git.getStagedDiff({
-      includeFiles: files,
-      ignoreFiles: excludeFiles,
-      silent: true,
-    });
-
-    const prDiff = removeImportOnlyChangesFromDiff(rawDiff);
-
-    console.log(
-      `📝 Staged diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
-    );
-
-    return prDiff;
-  }
-
-  const rawDiff = await git.getDiffToBranch(baseBranch, {
-    includeFiles: files,
-    ignoreFiles: excludeFiles,
-    silent: true,
-  });
-
-  const prDiff = removeImportOnlyChangesFromDiff(rawDiff);
-
-  console.log(
-    `📝 Diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
-  );
-
-  return prDiff;
-}
-
-/**
- * Applies exclude patterns to a file list.
- */
-function applyExcludePatterns(
-  files: string[],
-  excludePatterns?: string[],
-): string[] {
-  if (!excludePatterns || excludePatterns.length === 0) {
-    return files;
-  }
-
-  return files.filter(
-    (file) =>
-      !excludePatterns.some((pattern) => path.matchesGlob(file, pattern)),
-  );
+  return { stagedFiles, allFiles };
 }
 
 export const reviewCodeChangesCommand = createCmd({
-  description: 'Review code with AI',
+  description: 'Review local code changes with AI',
   short: 'rc',
   args: {
     setup: {
       type: 'value-string-flag',
       name: 'setup',
-      description:
-        'Review setup (veryLight, lightGoogle, mediumGoogle, light, medium, heavy)',
+      description: 'Review setup (light, medium, heavy)',
     },
     scope: {
       type: 'value-string-flag',
       name: 'scope',
-      description: 'Review scope (all, staged, pr)',
-    },
-    pr: {
-      type: 'value-string-flag',
-      name: 'pr',
-      description: 'PR number to review',
+      description: 'Review scope (all, staged)',
     },
     baseBranch: {
       type: 'value-string-flag',
@@ -190,14 +92,13 @@ export const reviewCodeChangesCommand = createCmd({
   },
   examples: [
     { args: ['--scope', 'staged'], description: 'Review staged changes' },
-    { args: ['--pr', '123'], description: 'Review PR #123' },
+    { args: ['--scope', 'all'], description: 'Review all changes vs base' },
     { args: ['--setup', 'light'], description: 'Use light review setup' },
   ],
-  run: async ({ setup, scope, pr, baseBranch }) => {
+  run: async ({ setup, scope, baseBranch }) => {
     const rootConfig = await loadConfig();
     const config = rootConfig.reviewCodeChanges ?? {};
 
-    // Resolve setup from CLI arg or interactive selection
     let setupConfig: ReviewSetupConfig | undefined = resolveSetup(
       config,
       setup,
@@ -212,7 +113,6 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     if (!setupConfig) {
-      // Interactive selection - use custom setups if configured, otherwise built-in
       const builtInOptions = [
         { value: 'light', label: 'Light - 1 GPT-5 reviewer' },
         { value: 'medium', label: 'Medium - 2 GPT-5 reviewers' },
@@ -225,7 +125,6 @@ export const reviewCodeChangesCommand = createCmd({
           label: s.label,
         })) ?? [];
 
-      // If custom setups are configured, use only those; otherwise use built-in
       const options = customOptions.length > 0 ? customOptions : builtInOptions;
 
       const selectedSetup = await cliInput.select('Select the review setup', {
@@ -240,26 +139,14 @@ export const reviewCodeChangesCommand = createCmd({
       }
     }
 
-    // Get PR number first (needed for fetching file lists)
-    let prNumber: string | null = pr ?? null;
-
     const currentBranch = git.getCurrentBranch();
 
-    // Resolve base branch (supports function form)
     const resolvedBaseBranch =
       baseBranch ?? resolveBaseBranch(config.baseBranch, currentBranch, 'main');
 
-    // Fetch all file lists upfront for scope context
     console.log('\n🔄 Fetching file lists...');
-    const { prData, scopeContext } = await fetchAllFileLists(
-      prNumber,
-      resolvedBaseBranch,
-    );
+    const scopeContext = await fetchLocalFileLists(resolvedBaseBranch);
 
-    // If PR number was provided, update base branch from PR data
-    const effectiveBaseBranch = prData?.baseRefName ?? resolvedBaseBranch;
-
-    // Resolve scope from CLI arg or interactive selection
     let scopeConfig: ScopeConfig | undefined = resolveScope(config, scope);
     let scopeLabel = scope;
 
@@ -271,7 +158,6 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     if (!scopeConfig) {
-      // Interactive selection - use custom scopes if configured, otherwise built-in
       const builtInOptions = [
         {
           value: 'all',
@@ -280,10 +166,6 @@ export const reviewCodeChangesCommand = createCmd({
         {
           value: 'staged',
           label: `Staged changes (${scopeContext.stagedFiles.length} files)`,
-        },
-        {
-          value: 'pr',
-          label: `PR changes${prNumber ? ` (${scopeContext.allFiles.length} files)` : ' (enter PR number)'}`,
         },
       ];
 
@@ -297,7 +179,6 @@ export const reviewCodeChangesCommand = createCmd({
           };
         }) ?? [];
 
-      // If custom scopes are configured, use only those; otherwise use built-in
       const options = customOptions.length > 0 ? customOptions : builtInOptions;
 
       const selectedScope = await cliInput.select('Select the review scope', {
@@ -312,26 +193,6 @@ export const reviewCodeChangesCommand = createCmd({
       }
     }
 
-    // Handle PR scope that needs PR number
-    if (scopeLabel === 'pr' && !prNumber) {
-      const prInput = await cliInput.text('Enter PR number');
-      prNumber = prInput;
-
-      // Re-fetch PR files with the new PR number
-      console.log(`🔄 Fetching PR #${prNumber} files...`);
-      const { prData: newPrData, scopeContext: newScopeContext } =
-        await fetchAllFileLists(prNumber, resolvedBaseBranch);
-
-      // Update scope context with PR files
-      scopeContext.allFiles = newScopeContext.allFiles;
-
-      // Update prData if it was fetched
-      if (newPrData) {
-        Object.assign(prData ?? {}, newPrData);
-      }
-    }
-
-    // Get files using the scope's getFiles function
     const scopeFiles = await scopeConfig.getFiles(scopeContext);
     const excludePatterns = getExcludePatterns(config);
     const changedFiles = applyExcludePatterns(scopeFiles, excludePatterns);
@@ -350,9 +211,9 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     const sourceDescription =
-      scopeLabel === 'staged' ? 'staged changes'
-      : prNumber ? `PR #${prNumber}`
-      : `${currentBranch} vs ${effectiveBaseBranch}`;
+      scopeLabel === 'staged' ? 'staged changes' : (
+        `${currentBranch} vs ${resolvedBaseBranch}`
+      );
 
     console.log(`\n🔄 Processing ${sourceDescription}...`);
 
@@ -360,10 +221,9 @@ export const reviewCodeChangesCommand = createCmd({
       `📋 Using ${setupLabel} setup with ${setupConfig.reviewers.length} reviewer(s)\n`,
     );
 
-    // Get diff for the selected files
     const useStaged = scopeLabel === 'staged';
     const prDiff = await getDiffForFiles(changedFiles, {
-      baseBranch: effectiveBaseBranch,
+      baseBranch: resolvedBaseBranch,
       excludeFiles: excludePatterns,
       useStaged,
     });
@@ -372,19 +232,15 @@ export const reviewCodeChangesCommand = createCmd({
 
     if (diffTokens > MAX_DIFF_TOKENS) {
       console.warn(
-        `⚠️ Warning: PR has ${formatNum(diffTokens)} tokens in the diff (max recommended: ${formatNum(MAX_DIFF_TOKENS)})`,
+        `⚠️ Warning: Diff has ${formatNum(diffTokens)} tokens (max recommended: ${formatNum(MAX_DIFF_TOKENS)})`,
       );
     }
 
-    // Create context
-    const context: PRReviewContext = {
-      mode: 'local',
-      isTestGhMode: false,
-      prNumber,
+    const context: LocalReviewContext = {
+      type: 'local',
       additionalInstructions: undefined,
     };
 
-    // Run reviews
     console.log(
       `🔍 Running ${setupConfig.reviewers.length} independent reviews...`,
     );
@@ -392,7 +248,7 @@ export const reviewCodeChangesCommand = createCmd({
     const reviewPromises = setupConfig.reviewers.map((model, index) =>
       runSingleReview(
         context,
-        prData,
+        null,
         changedFiles,
         prDiff,
         index + 1,
@@ -418,29 +274,14 @@ export const reviewCodeChangesCommand = createCmd({
 
     console.log('\n');
 
-    // Fetch human comments if reviewing a PR
-    let humanComments;
-    if (prNumber) {
-      console.log('📥 Fetching human review comments...');
-      try {
-        humanComments = await github.getAllHumanPRComments(prNumber);
-        console.log(
-          `📋 Found ${humanComments.length} general comments from humans`,
-        );
-      } catch (error) {
-        console.warn('⚠️ Failed to fetch human comments:', error);
-      }
-    }
-
-    // Run validation
     console.log('🔍 Running feedback checker to validate findings...');
     const validatedReview = await reviewValidator(
       context,
       successfulReviews,
-      prData,
+      null,
       changedFiles,
       prDiff,
-      humanComments,
+      undefined,
       setupConfig.validator,
       setupConfig.formatter,
       config.reviewInstructionsPath,
@@ -449,7 +290,6 @@ export const reviewCodeChangesCommand = createCmd({
       `✅ Validation complete - found ${validatedReview.issues.length} validated issues`,
     );
 
-    // Log usage
     const reviewsUsage = calculateReviewsUsage(successfulReviews);
     const totalUsage = calculateTotalUsage([
       ...successfulReviews.map((review) => review.usage),
@@ -473,15 +313,12 @@ export const reviewCodeChangesCommand = createCmd({
       `,
     );
 
-    // Format and output review
     console.log('📝 Formatting review...');
-    const authorLogin = prData?.author.login ?? 'local';
-    const headRefName = prData?.headRefName ?? currentBranch;
     const reviewContent = await formatValidatedReview(
       validatedReview,
-      authorLogin,
+      'local',
       context,
-      headRefName,
+      currentBranch,
       {
         reviews: successfulReviews,
         validatorUsage: validatedReview.usage,
@@ -489,11 +326,9 @@ export const reviewCodeChangesCommand = createCmd({
       },
     );
 
-    // Write to file
     const outputFile = 'pr-review.md';
     await writeFile(outputFile, reviewContent);
 
-    // Handle output
     await handleOutput(context, reviewContent);
   },
 });

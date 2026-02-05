@@ -13,10 +13,6 @@ export const DEFAULT_SCOPES = {
     label: 'staged',
     getFiles: (ctx: ScopeContext) => ctx.stagedFiles,
   },
-  pr: {
-    label: 'pr',
-    getFiles: (ctx: ScopeContext) => ctx.allFiles,
-  },
 } as const satisfies Record<string, ScopeConfig>;
 
 /**
@@ -81,7 +77,7 @@ export function getAvailableScopes(config: ReviewCodeChangesConfig): string[] {
  * When showFileCount is falsy, getFiles is not called (lazy evaluation).
  */
 export function tryGetFileCountSync(
-  scope: ScopeConfig,
+  scope: ScopeConfig & { showFileCount?: boolean },
   ctx: ScopeContext,
 ): number | null {
   if (!scope.showFileCount) {

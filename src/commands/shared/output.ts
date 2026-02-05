@@ -4,7 +4,7 @@ import { git } from '../../lib/git.ts';
 import { github } from '../../lib/github.ts';
 import { runCmdSilentUnwrap } from '../../lib/shell.ts';
 import type {
-  PRReviewContext,
+  ReviewContext,
   IndividualReview,
   ValidatedReview,
   TokenUsage,
@@ -171,7 +171,7 @@ ${stripMarkdownHeadings(issue.suggestedFix)}
 export async function formatValidatedReview(
   validatedReview: ValidatedReview,
   prAuthor: string,
-  context: PRReviewContext,
+  context: ReviewContext,
   headRefName: string,
   tokenUsage: {
     reviews: IndividualReview[];
@@ -182,6 +182,10 @@ export async function formatValidatedReview(
   const { summary, issues } = validatedReview;
   const { owner, repo } = await git.getRepoInfo();
 
+  const isLocal = context.type === 'local';
+  const isPR = context.type === 'pr';
+  const isTestMode = isPR && context.mode === 'test';
+
   function formatFileLink(
     file: string | undefined,
     line: number | null,
@@ -190,17 +194,15 @@ export async function formatValidatedReview(
 
     const fileWithLine = line ? `${file}:${line}` : file;
 
-    if (context.mode === 'local' || context.isTestGhMode) {
+    if (isLocal || isTestMode) {
       const lineFragment = line ? `#L${line}` : '';
       return `[${fileWithLine}](/${file}${lineFragment})`;
-    } else {
-      if (context.prNumber && headRefName) {
-        const githubUrl = `https://github.com/${owner}/${repo}/blob/refs/heads/${headRefName}/${file}`;
-        const lineFragment = line ? `#L${line}` : '';
-        return `[${fileWithLine}](${githubUrl}${lineFragment})`;
-      }
-      return `\`${fileWithLine}\``;
+    } else if (isPR) {
+      const githubUrl = `https://github.com/${owner}/${repo}/blob/refs/heads/${headRefName}/${file}`;
+      const lineFragment = line ? `#L${line}` : '';
+      return `[${fileWithLine}](${githubUrl}${lineFragment})`;
     }
+    return `\`${fileWithLine}\``;
   }
 
   const criticalIssues = issues.filter(
@@ -213,10 +215,10 @@ export async function formatValidatedReview(
 
   let reviewContent = '';
 
-  if (context.mode === 'local' || context.isTestGhMode) {
+  if (isLocal || isTestMode) {
     const commitHash = await runCmdSilentUnwrap(['git', 'rev-parse', 'HEAD']);
     const prLink =
-      context.prNumber ?
+      isPR ?
         `PR [#${context.prNumber} - ${headRefName}](https://github.com/${owner}/${repo}/pull/${context.prNumber})`
       : `branch ${headRefName}`;
     reviewContent += `
@@ -277,7 +279,7 @@ ${stripMarkdownHeadings(suggestedFix)}
 `;
     }
 
-    if (context.mode === 'gh-actions') {
+    if (isPR && context.mode === 'gh-actions') {
       reviewContent += `
 <details>
 <summary>🔧 Copy-Paste Fix Prompt</summary>
@@ -368,7 +370,7 @@ ${formatTokenUsageSection(
 }
 
 export async function handleOutput(
-  context: PRReviewContext,
+  context: ReviewContext,
   reviewContent: string,
 ): Promise<void> {
   if (process.env.GITHUB_STEP_SUMMARY && reviewContent) {
@@ -380,11 +382,7 @@ export async function handleOutput(
     }
   }
 
-  if (
-    context.mode === 'gh-actions' &&
-    !context.isTestGhMode &&
-    context.prNumber
-  ) {
+  if (context.type === 'pr' && context.mode === 'gh-actions') {
     console.log('💬 Posting review...');
     await github.createPRComment(
       context.prNumber,
@@ -392,7 +390,7 @@ export async function handleOutput(
       PR_REVIEW_MARKER,
     );
     console.log('✅ Done');
-  } else if (context.mode === 'gh-actions' && context.isTestGhMode) {
+  } else if (context.type === 'pr' && context.mode === 'test') {
     console.log(
       `💬 Review saved to ${styleText(['bold', 'bgBlue'], '/pr-review-test.md')}`,
     );

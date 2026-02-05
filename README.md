@@ -1,13 +1,13 @@
 # ai-cmds
 
-AI-powered code review CLI tool that uses OpenAI GPT-5 and Google Gemini models to review code changes. Supports reviewing PRs, staged changes, or all changes against a base branch.
+AI-powered code review CLI tool that uses OpenAI GPT-5 and Google Gemini models to review code changes. Supports reviewing PRs in CI environments or local changes during development.
 
 ## Features
 
 - Multiple AI models: GPT-5, GPT-5-mini, Gemini 2.5 Pro, Gemini 2.5 Flash Lite
 - Configurable review setups from very light to heavy
 - Custom setups with full control over reviewer, validator, and formatter models
-- Review scopes: PR, staged changes, or all changes vs base branch
+- Two commands: `review-code-changes` for local development, `review-pr` for CI
 - Parallel reviews with validation pass for higher accuracy
 - Automatic filtering of import-only changes
 - Custom review instructions support
@@ -28,14 +28,15 @@ pnpm add ai-cmds
 - `OPENAI_API_KEY` environment variable (for OpenAI setups)
 - `GOOGLE_GENERATIVE_AI_API_KEY` environment variable (for Google setups)
 
-## Usage
+## Commands
+
+### `review-code-changes` - Local Development
+
+Review local code changes (staged or all changes vs base branch). Best for local development workflow.
 
 ```bash
 # Review staged changes
 ai-cmds review-code-changes --scope staged
-
-# Review a specific PR
-ai-cmds review-code-changes --pr 123
 
 # Review all changes against base branch
 ai-cmds review-code-changes --scope all
@@ -47,7 +48,36 @@ ai-cmds review-code-changes --setup light
 ai-cmds review-code-changes --scope all --base-branch develop
 ```
 
-### Review Setups
+**Arguments:**
+- `--scope` - Review scope: `all` (all changes vs base) or `staged` (staged changes only)
+- `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup label
+- `--base-branch` - Base branch for diff comparison (default: `main`)
+
+### `review-pr` - CI/PR Review
+
+Review a specific GitHub PR. Designed for CI environments (GitHub Actions) but can also be used locally.
+
+```bash
+# Review PR #123
+ai-cmds review-pr --pr 123
+
+# Review PR without posting comment (test mode)
+ai-cmds review-pr --pr 123 --test
+
+# Heavy review of a PR
+ai-cmds review-pr --pr 123 --setup heavy
+```
+
+**Arguments:**
+- `--pr` - PR number to review (**required**)
+- `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup label
+- `--test` - Test mode: skip posting review to PR, just save to file
+
+**Behavior:**
+- In GitHub Actions (`GITHUB_ACTIONS` env set): Posts review as PR comment
+- With `--test` flag or locally: Saves review to `pr-review-test.md`
+
+## Review Setups
 
 | Setup | Reviewers | Description |
 |-------|-----------|-------------|
@@ -154,11 +184,12 @@ Use custom setups via CLI:
 
 ```bash
 ai-cmds review-code-changes --setup myCustomSetup
+ai-cmds review-pr --pr 123 --setup myCustomSetup
 ```
 
 ### Custom Scopes
 
-Define custom scopes to control which files are included in the review. **When custom scopes are configured, they replace built-in options** (all, staged, pr).
+Define custom scopes to control which files are included in the review. **When custom scopes are configured, they replace built-in options** (all, staged).
 
 ```typescript
 import { defineConfig } from 'ai-cmds';
@@ -181,7 +212,7 @@ export default defineConfig({
 
 The `getFiles` function receives a context object with:
 - `stagedFiles`: Files currently staged for commit
-- `allFiles`: All files changed compared to base branch (or PR files if reviewing a PR)
+- `allFiles`: All files changed compared to base branch
 
 To include built-in options alongside your custom scopes, use `BUILT_IN_SCOPE_OPTIONS`:
 
@@ -191,7 +222,7 @@ import { defineConfig, BUILT_IN_SCOPE_OPTIONS } from 'ai-cmds';
 export default defineConfig({
   reviewCodeChanges: {
     scope: [
-      ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged, pr
+      ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged
       { label: 'src-only', getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')) },
     ],
   },
@@ -202,6 +233,41 @@ Use custom scopes via CLI:
 
 ```bash
 ai-cmds review-code-changes --scope src-only
+```
+
+## GitHub Actions Integration
+
+Example workflow for running PR reviews in CI:
+
+```yaml
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+          cache: 'pnpm'
+
+      - run: pnpm install
+
+      - name: Run AI Review
+        run: pnpm ai-cmds review-pr --pr ${{ github.event.pull_request.number }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ## License
