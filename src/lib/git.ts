@@ -108,6 +108,20 @@ export async function getRemoteUrl(): Promise<string> {
   return runCmdSilentUnwrap(['git', 'remote', 'get-url', 'origin']);
 }
 
+export async function getLocalBranches(): Promise<string[]> {
+  const output = await runCmdSilentUnwrap([
+    'git',
+    'branch',
+    '--format=%(refname:short)',
+  ]);
+
+  return output
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .sort((a, b) => a.length - b.length);
+}
+
 export async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
   const remoteUrl = await getRemoteUrl();
 
@@ -144,4 +158,5 @@ export const git = {
   getCommitHash,
   getRemoteUrl,
   getRepoInfo,
+  getLocalBranches,
 };

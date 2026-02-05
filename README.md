@@ -51,7 +51,7 @@ ai-cmds review-code-changes --scope all --base-branch develop
 **Arguments:**
 - `--scope` - Review scope: `all`, `staged`, `globs`, `unViewed`, or custom scope id
 - `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup id
-- `--base-branch` - Base branch for diff comparison (default: `main`)
+- `--base-branch` - Base branch for diff comparison (if not specified, prompts for selection)
 
 ### `review-pr` - CI/PR Review
 
@@ -141,7 +141,7 @@ export default defineConfig({
 
 | Option | Description |
 |--------|-------------|
-| `baseBranch` | Base branch for diff comparison. Can be a string or function `(currentBranch) => string` |
+| `baseBranch` | Base branch for diff comparison. Can be a string or function `(currentBranch) => string`. If not set, prompts for selection |
 | `codeReviewDiffExcludePatterns` | Glob patterns for files to exclude from review |
 | `reviewInstructionsPath` | Path to custom review instructions markdown file |
 | `setup` | Array of custom named setups (see below) |

@@ -133,8 +133,26 @@ export const reviewCodeChangesCommand = createCmd({
 
     const currentBranch = git.getCurrentBranch();
 
-    const resolvedBaseBranch =
-      baseBranch ?? resolveBaseBranch(config.baseBranch, currentBranch, 'main');
+    const resolvedBaseBranch = await (async () => {
+      const fromArgs =
+        baseBranch ?? resolveBaseBranch(config.baseBranch, currentBranch);
+
+      if (fromArgs) return fromArgs;
+
+      const branches = await git.getLocalBranches();
+      const otherBranches = branches.filter((b) => b !== currentBranch);
+
+      if (otherBranches.length === 0) {
+        showErrorAndExit('No other branches found to compare against');
+      }
+
+      return cliInput.select('Select the base branch', {
+        options: otherBranches.map((branch) => ({
+          value: branch,
+          label: branch,
+        })),
+      });
+    })();
 
     console.log('\n🔄 Fetching file lists...');
     const scopeContext = await fetchLocalFileLists(resolvedBaseBranch);

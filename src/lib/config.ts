@@ -59,7 +59,8 @@ export type ReviewCodeChangesConfig = {
   /**
    * Base branch for comparing changes.
    * Can be a static string or a function that receives the current branch name.
-   * @default 'main'
+   * If not set, the user will be prompted to select from available branches.
+   * @example 'main'
    * @example 'develop'
    * @example (currentBranch) => currentBranch.startsWith('release/') ? 'main' : 'develop'
    */
@@ -154,13 +155,13 @@ export function clearConfigCache(): void {
 
 /**
  * Resolves the base branch from config, supporting both string and function forms.
+ * Returns undefined if no base branch is configured.
  */
 export function resolveBaseBranch(
   configBaseBranch: ReviewCodeChangesConfig['baseBranch'],
   currentBranch: string,
-  defaultBranch = 'main',
-): string {
-  if (configBaseBranch === undefined) return defaultBranch;
+): string | undefined {
+  if (configBaseBranch === undefined) return undefined;
   if (typeof configBaseBranch === 'function')
     return configBaseBranch(currentBranch);
   return configBaseBranch;
