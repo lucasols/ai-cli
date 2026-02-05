@@ -49,8 +49,8 @@ ai-cmds review-code-changes --scope all --base-branch develop
 ```
 
 **Arguments:**
-- `--scope` - Review scope: `all` (all changes vs base) or `staged` (staged changes only)
-- `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup label
+- `--scope` - Review scope: `all`, `staged`, `globs`, `unViewed`, or custom scope id
+- `--setup` - Review setup: `light`, `medium`, `heavy`, or custom setup id
 - `--base-branch` - Base branch for diff comparison (default: `main`)
 
 ### `review-pr` - CI/PR Review
@@ -87,6 +87,39 @@ ai-cmds review-pr --pr 123 --setup heavy
 | `heavy` | 4× GPT-5 (high reasoning) | Most comprehensive |
 | `lightGoogle` | 1× Gemini 2.5 Pro | Google alternative |
 | `mediumGoogle` | 2× Gemini 2.5 Pro | Google thorough |
+
+## Review Scopes
+
+| Scope | Description |
+|-------|-------------|
+| `all` | All changes compared to base branch |
+| `staged` | Only staged changes |
+| `globs` | Interactive glob pattern selection (use `!pattern` to exclude) |
+| `unViewed` | Unviewed files in PR (requires open PR for current branch) |
+
+### Using the `globs` Scope
+
+The `globs` scope allows you to select files using glob patterns interactively:
+
+```bash
+ai-cmds review-code-changes --scope globs
+# Then enter patterns like: src/**/*.ts !**/*.test.ts
+```
+
+Pattern syntax:
+- `src/**/*.ts` - Include all TypeScript files in src
+- `!**/*.test.ts` - Exclude test files
+- `components` - Simple folder names are expanded to `**/components/**`
+
+### Using the `unViewed` Scope
+
+The `unViewed` scope reviews only files you haven't marked as "viewed" in the GitHub PR interface:
+
+```bash
+ai-cmds review-code-changes --scope unViewed
+```
+
+This requires an open PR for the current branch. It uses the GitHub GraphQL API to fetch the viewed state of each file.
 
 ## Configuration
 
@@ -224,7 +257,7 @@ import { defineConfig, BUILT_IN_SCOPE_OPTIONS } from 'ai-cmds';
 export default defineConfig({
   reviewCodeChanges: {
     scope: [
-      ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged
+      ...BUILT_IN_SCOPE_OPTIONS, // includes all, staged, globs, unViewed
       { id: 'src-only', label: 'Source files only', getFiles: (ctx) => ctx.allFiles.filter((f) => f.startsWith('src/')) },
     ],
   },

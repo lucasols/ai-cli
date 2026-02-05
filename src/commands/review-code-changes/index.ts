@@ -12,6 +12,7 @@ import {
 import { formatNum } from '../../lib/diff.ts';
 import { git } from '../../lib/git.ts';
 import { runCmdSilentUnwrap, showErrorAndExit } from '../../lib/shell.ts';
+import { applyExcludePatterns, getDiffForFiles } from '../shared/diff-utils.ts';
 import {
   calculateReviewsUsage,
   calculateTotalUsage,
@@ -33,7 +34,6 @@ import {
   setupConfigsToOptions,
   type ReviewSetupConfig,
 } from '../shared/setups.ts';
-import { getDiffForFiles, applyExcludePatterns } from '../shared/diff-utils.ts';
 import type { IndividualReview, LocalReviewContext } from '../shared/types.ts';
 
 const MAX_DIFF_TOKENS = 60_000;
@@ -203,8 +203,8 @@ export const reviewCodeChangesCommand = createCmd({
     const diffTokens = estimateTokenCount(prDiff);
 
     if (diffTokens > MAX_DIFF_TOKENS) {
-      console.warn(
-        `⚠️ Warning: Diff has ${formatNum(diffTokens)} tokens (max recommended: ${formatNum(MAX_DIFF_TOKENS)})`,
+      showErrorAndExit(
+        `❌ Diff has ${formatNum(diffTokens)} tokens (max allowed: ${formatNum(MAX_DIFF_TOKENS)})`,
       );
     }
 

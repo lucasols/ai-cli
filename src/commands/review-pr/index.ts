@@ -6,6 +6,7 @@ import { getExcludePatterns, loadConfig } from '../../lib/config.ts';
 import { formatNum } from '../../lib/diff.ts';
 import { github } from '../../lib/github.ts';
 import { showErrorAndExit } from '../../lib/shell.ts';
+import { applyExcludePatterns, getDiffForFiles } from '../shared/diff-utils.ts';
 import {
   calculateReviewsUsage,
   calculateTotalUsage,
@@ -19,7 +20,6 @@ import {
   reviewSetupConfigs,
   type ReviewSetupConfig,
 } from '../shared/setups.ts';
-import { getDiffForFiles, applyExcludePatterns } from '../shared/diff-utils.ts';
 import type { IndividualReview, PRReviewContext } from '../shared/types.ts';
 
 const MAX_DIFF_TOKENS = 60_000;
@@ -115,8 +115,8 @@ export const reviewPRCommand = createCmd({
     const diffTokens = estimateTokenCount(prDiff);
 
     if (diffTokens > MAX_DIFF_TOKENS) {
-      console.warn(
-        `⚠️ Warning: PR has ${formatNum(diffTokens)} tokens in the diff (max recommended: ${formatNum(MAX_DIFF_TOKENS)})`,
+      showErrorAndExit(
+        `❌ PR has ${formatNum(diffTokens)} tokens in the diff (max allowed: ${formatNum(MAX_DIFF_TOKENS)})`,
       );
     }
 

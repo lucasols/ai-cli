@@ -172,6 +172,93 @@ export async function getAllHumanPRComments(
   }
 }
 
+const unviewedPRFilesResponseSchema = z.object({
+  data: z.object({
+    repository: z.object({
+      pullRequest: z.object({
+        files: z.object({
+          nodes: z.array(
+            z.object({
+              path: z.string(),
+              viewerViewedState: z.enum(['VIEWED', 'UNVIEWED', 'DISMISSED']),
+            }),
+          ),
+          pageInfo: z.object({
+            hasNextPage: z.boolean(),
+            endCursor: z.string().nullable(),
+          }),
+        }),
+      }),
+    }),
+  }),
+});
+
+export async function getUnviewedPRFiles(prNumber: string): Promise<string[]> {
+  const { owner, repo } = await git.getRepoInfo();
+  const prNumberInt = parseInt(prNumber, 10);
+
+  const allFiles: Array<{ path: string; viewerViewedState: string }> = [];
+  let hasNextPage = true;
+  let cursor: string | null = null;
+
+  while (hasNextPage) {
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $number) {
+            files(first: 100, after: $cursor) {
+              nodes {
+                path
+                viewerViewedState
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      owner,
+      repo,
+      number: prNumberInt,
+      cursor,
+    };
+
+    const result = await runCmdUnwrap(
+      [
+        'gh',
+        'api',
+        'graphql',
+        '-f',
+        `query=${query}`,
+        '-F',
+        `owner=${variables.owner}`,
+        '-F',
+        `repo=${variables.repo}`,
+        '-F',
+        `number=${variables.number}`,
+        ...(variables.cursor ? ['-F', `cursor=${variables.cursor}`] : []),
+      ],
+      { silent: true, noColor: true },
+    );
+
+    const parsed = unviewedPRFilesResponseSchema.parse(JSON.parse(result));
+    const { nodes, pageInfo } = parsed.data.repository.pullRequest.files;
+
+    allFiles.push(...nodes);
+    hasNextPage = pageInfo.hasNextPage;
+    cursor = pageInfo.endCursor;
+  }
+
+  return allFiles
+    .filter((file) => file.viewerViewedState === 'UNVIEWED')
+    .map((file) => file.path);
+}
+
 export const github = {
   getPRData,
   getChangedFiles,
@@ -180,4 +267,5 @@ export const github = {
   deletePRComments,
   isHumanUser,
   getAllHumanPRComments,
+  getUnviewedPRFiles,
 };

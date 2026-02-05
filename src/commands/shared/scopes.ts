@@ -1,8 +1,116 @@
+import { cliInput } from '@ls-stack/cli';
+import { matchesGlob } from 'node:path';
 import type {
   ReviewCodeChangesConfig,
   ScopeConfig,
   ScopeContext,
 } from '../../lib/config.ts';
+import { getUnviewedPRFiles } from '../../lib/github.ts';
+import { runCmd } from '../../lib/shell.ts';
+
+async function findPRForCurrentBranch(): Promise<string | undefined> {
+  const result = await runCmd(['gh', 'pr', 'view', '--json', 'number'], {
+    silent: true,
+    noColor: true,
+  });
+
+  if (result.error) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(result.value.stdout) as { number: number };
+    return String(parsed.number);
+  } catch {
+    return undefined;
+  }
+}
+
+function filterFilesWithGlobPatterns(
+  files: string[],
+  patterns: string[],
+): string[] {
+  const includePatterns: string[] = [];
+  const excludePatterns: string[] = [];
+
+  for (const pattern of patterns) {
+    if (pattern.startsWith('!')) {
+      excludePatterns.push(normalizeGlobPattern(pattern.slice(1)));
+    } else {
+      includePatterns.push(normalizeGlobPattern(pattern));
+    }
+  }
+
+  let matchedFiles = files;
+
+  if (includePatterns.length > 0) {
+    matchedFiles = files.filter((file) =>
+      includePatterns.some((pattern) => matchesGlob(file, pattern)),
+    );
+  }
+
+  if (excludePatterns.length > 0) {
+    matchedFiles = matchedFiles.filter(
+      (file) => !excludePatterns.some((pattern) => matchesGlob(file, pattern)),
+    );
+  }
+
+  return matchedFiles;
+}
+
+function normalizeGlobPattern(pattern: string): string {
+  if (
+    !pattern.includes('*') &&
+    !pattern.includes('?') &&
+    !pattern.includes('[')
+  ) {
+    return `**/${pattern}/**`;
+  }
+  return pattern;
+}
+
+async function selectFilesWithGlobPatterns(
+  allFiles: string[],
+): Promise<string[]> {
+  for (;;) {
+    const input = await cliInput.text(
+      'Enter glob patterns (space-separated, use !pattern to exclude)',
+      {
+        validate: (value) => {
+          if (!value.trim()) {
+            return 'Please enter at least one pattern';
+          }
+          return true;
+        },
+      },
+    );
+
+    const patterns = input.trim().split(/\s+/);
+    const matchedFiles = filterFilesWithGlobPatterns(allFiles, patterns);
+
+    if (matchedFiles.length === 0) {
+      console.log('\n⚠️  No files matched the patterns. Please try again.\n');
+      continue;
+    }
+
+    console.log(`\n📁 Matched ${matchedFiles.length} files:`);
+    for (const file of matchedFiles.slice(0, 10)) {
+      console.log(`   ${file}`);
+    }
+    if (matchedFiles.length > 10) {
+      console.log(`   ... and ${matchedFiles.length - 10} more`);
+    }
+    console.log('');
+
+    const confirmed = await cliInput.confirm('Use these files?', {
+      initial: true,
+    });
+
+    if (confirmed) {
+      return matchedFiles;
+    }
+  }
+}
 
 export const DEFAULT_SCOPES = {
   all: {
@@ -16,6 +124,27 @@ export const DEFAULT_SCOPES = {
     label: 'Staged changes',
     showFileCount: true,
     getFiles: (ctx: ScopeContext) => ctx.stagedFiles,
+  },
+  globs: {
+    id: 'globs',
+    label: 'Select files using glob patterns (use !pattern to exclude)',
+    showFileCount: false,
+    getFiles: (ctx: ScopeContext) => selectFilesWithGlobPatterns(ctx.allFiles),
+  },
+  unViewed: {
+    id: 'unViewed',
+    label: 'Unviewed files in PR',
+    showFileCount: false,
+    getFiles: async () => {
+      const prNumber = await findPRForCurrentBranch();
+      if (!prNumber) {
+        throw new Error(
+          'No open PR found for current branch. The unViewed scope requires an open PR.',
+        );
+      }
+      console.log(`Getting unviewed files from PR #${prNumber}...`);
+      return getUnviewedPRFiles(prNumber);
+    },
   },
 } as const satisfies Record<string, ScopeConfig>;
 
