@@ -101,7 +101,7 @@ export default defineConfig({
 
 ### Custom Setups
 
-Define custom named setups with full control over which models are used:
+Define custom named setups with full control over which models are used. **When custom setups are configured, they replace built-in options** (veryLight, light, medium, heavy).
 
 ```typescript
 import { defineConfig } from 'ai-cmds';
@@ -130,6 +130,21 @@ export default defineConfig({
     // Defaults for custom setups that don't specify validator/formatter
     defaultValidator: { model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
     defaultFormatter: { model: openai('gpt-5-mini') },
+  },
+});
+```
+
+To include built-in options alongside your custom setups, use `BUILT_IN_SETUP_OPTIONS`:
+
+```typescript
+import { defineConfig, BUILT_IN_SETUP_OPTIONS } from 'ai-cmds';
+
+export default defineConfig({
+  reviewCodeChanges: {
+    setup: [
+      ...BUILT_IN_SETUP_OPTIONS, // includes veryLight, light, medium, heavy
+      { label: 'myCustomSetup', reviewers: [...] },
+    ],
   },
 });
 ```

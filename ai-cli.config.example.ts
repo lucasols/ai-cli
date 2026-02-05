@@ -15,7 +15,10 @@ export default defineConfig({
     // reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',
 
     // Custom named setups (selectable via --setup flag)
+    // When custom setups are configured, they REPLACE built-in options.
+    // To include built-in options alongside custom ones, use BUILT_IN_SETUP_OPTIONS:
     // setup: [
+    //   ...BUILT_IN_SETUP_OPTIONS, // spread built-in options if you want to keep them
     //   {
     //     label: 'myCustomSetup',
     //     reviewers: [

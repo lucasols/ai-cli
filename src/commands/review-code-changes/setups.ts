@@ -129,7 +129,74 @@ export function resolveSetup(
  * Get all available setup labels (built-in + custom).
  */
 export function getAvailableSetups(config: ReviewCodeChangesConfig): string[] {
-  const builtIn = Object.keys(reviewSetupConfigs);
-  const custom = config.setup?.map((s) => s.label) ?? [];
-  return [...builtIn, ...custom];
+  // If custom setups are configured, only show those
+  if (config.setup && config.setup.length > 0) {
+    return config.setup.map((s) => s.label);
+  }
+  // Otherwise show built-in presets
+  return Object.keys(reviewSetupConfigs);
 }
+
+/**
+ * Built-in setup options that users can include in their config.
+ * When custom setups are configured, they replace built-in options.
+ * Use this export to include built-in options alongside custom ones:
+ *
+ * @example
+ * ```typescript
+ * import { defineConfig, BUILT_IN_SETUP_OPTIONS } from 'ai-cmds';
+ *
+ * export default defineConfig({
+ *   reviewCodeChanges: {
+ *     setup: [
+ *       ...BUILT_IN_SETUP_OPTIONS,
+ *       { label: 'myCustomSetup', reviewers: [...] },
+ *     ],
+ *   },
+ * });
+ * ```
+ */
+export const BUILT_IN_SETUP_OPTIONS: SetupConfig[] = [
+  {
+    label: 'veryLight',
+    reviewers: [{ model: gpt5MiniModel.model }],
+  },
+  {
+    label: 'light',
+    reviewers: [{ model: gpt5Model.model }],
+  },
+  {
+    label: 'medium',
+    reviewers: [
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+    ],
+  },
+  {
+    label: 'heavy',
+    reviewers: [
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+      {
+        model: gpt5ModelHigh.model,
+        providerOptions: { reasoningEffort: 'high' },
+      },
+    ],
+  },
+];

@@ -208,7 +208,7 @@ export const reviewCodeChangesCommand = createCmd({
     }
 
     if (!setupConfig) {
-      // Interactive selection - show built-in options plus any custom setups
+      // Interactive selection - use custom setups if configured, otherwise built-in
       const builtInOptions = [
         {
           value: 'veryLight',
@@ -222,15 +222,15 @@ export const reviewCodeChangesCommand = createCmd({
       const customOptions =
         config.setup?.map((s) => ({
           value: s.label,
-          label: `${s.label} (custom) - ${s.reviewers.length} reviewer(s)`,
+          label: `${s.label} - ${s.reviewers.length} reviewer(s)`,
         })) ?? [];
 
-      const selectedSetup = await cliInput.select(
-        'Select the review setup (be careful, the heavier the setup, more costly it will be!)',
-        {
-          options: [...builtInOptions, ...customOptions],
-        },
-      );
+      // If custom setups are configured, use only those; otherwise use built-in
+      const options = customOptions.length > 0 ? customOptions : builtInOptions;
+
+      const selectedSetup = await cliInput.select('Select the review setup', {
+        options,
+      });
 
       setupLabel = selectedSetup;
       setupConfig = resolveSetup(config, selectedSetup);
