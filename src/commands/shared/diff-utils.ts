@@ -26,7 +26,7 @@ export async function getDiffForFiles(
     const prDiff = removeImportOnlyChangesFromDiff(rawDiff);
 
     console.log(
-      `📝 Staged diff: ${Math.round(prDiff.length / 1024)}KB, ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
+      `📝 Staged diff: ${prDiff.split('\n').length} lines, ${formatNum(estimateTokenCount(prDiff))} tokens`,
     );
 
     return prDiff;
