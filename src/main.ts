@@ -1,9 +1,9 @@
 import { createCLI } from '@ls-stack/cli';
-import { reviewCodeCommand } from './commands/review-code/index.ts';
+import { reviewCodeChangesCommand } from './commands/review-code-changes/index.ts';
 
 await createCLI(
   { name: '✨ ai-cmds', baseCmd: 'ai-cmds' },
   {
-    'review-code-changes': reviewCodeCommand,
+    'review-code-changes': reviewCodeChangesCommand,
   },
 );

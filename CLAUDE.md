@@ -31,7 +31,7 @@ src/
 ├── main.ts                      # CLI entry point
 ├── index.ts                     # Public exports (defineConfig)
 ├── commands/
-│   └── review-code/
+│   └── review-code-changes/
 │       ├── index.ts             # Command handler, orchestrates review flow
 │       ├── reviewer.ts          # Executes AI reviews with tool use
 │       ├── setups.ts            # Model configurations (veryLight → heavy)

@@ -207,7 +207,7 @@ async function fetchPRData(
   return { prData, changedFiles, prDiff, baseBranch };
 }
 
-export const reviewCodeCommand = createCmd({
+export const reviewCodeChangesCommand = createCmd({
   description: 'Review code with AI',
   short: 'rc',
   args: {
