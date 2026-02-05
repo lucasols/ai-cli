@@ -1,9 +1,9 @@
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { describe, it, expect, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
-  defineConfig,
   clearConfigCache,
+  defineConfig,
   loadConfig,
 } from '../src/lib/config.ts';
 
@@ -14,7 +14,7 @@ describe('config', () => {
 
   it('defineConfig returns the config unchanged', () => {
     const config = defineConfig({
-      reviewCodeChanges: {
+      codeReview: {
         baseBranch: 'main',
         codeReviewDiffExcludePatterns: ['*.md'],
       },

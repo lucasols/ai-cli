@@ -2,14 +2,18 @@
 import { defineConfig } from './src/lib/config.ts';
 
 export default defineConfig({
-  reviewCodeChanges: {
+  codeReview: {
     // Default base branch for diff comparison
     // Can be a static string or a function that receives the current branch name
     baseBranch: 'main',
     // baseBranch: (currentBranch) => currentBranch.startsWith('release/') ? 'main' : 'develop',
 
     // Files to exclude from code review diff (glob patterns)
-    codeReviewDiffExcludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
+    codeReviewDiffExcludePatterns: [
+      'pnpm-lock.yaml',
+      '**/*.svg',
+      '**/*.test.ts',
+    ],
 
     // Path to custom review instructions (optional)
     // reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',

@@ -100,7 +100,7 @@ export const reviewCodeChangesCommand = createCmd({
   ],
   run: async ({ setup, scope, baseBranch }) => {
     const rootConfig = await loadConfig();
-    const config = rootConfig.reviewCodeChanges ?? {};
+    const config = rootConfig.codeReview ?? {};
 
     let setupConfig: ReviewSetupConfig | undefined = resolveSetup(
       config,

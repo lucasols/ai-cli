@@ -16,8 +16,8 @@ import {
 } from '../shared/output.ts';
 import {
   reviewValidator,
-  runSingleReview,
   runPreviousReviewCheck,
+  runSingleReview,
 } from '../shared/reviewer.ts';
 import {
   resolveSetup,
@@ -70,7 +70,7 @@ export const reviewPRCommand = createCmd({
     }
 
     const rootConfig = await loadConfig();
-    const config = rootConfig.reviewCodeChanges ?? {};
+    const config = rootConfig.codeReview ?? {};
 
     const isGitHubActions = Boolean(process.env.GITHUB_ACTIONS);
 

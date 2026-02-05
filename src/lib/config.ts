@@ -116,9 +116,9 @@ export type ReviewCodeChangesConfig = {
 
 export type Config = {
   /**
-   * Configuration for the review-code-changes command.
+   * Configuration for the review-code-changes and review-pr commands.
    */
-  reviewCodeChanges?: ReviewCodeChangesConfig;
+  codeReview?: ReviewCodeChangesConfig;
 
   /**
    * Controls loading of environment variables from `.env` files.
