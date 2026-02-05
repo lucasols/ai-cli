@@ -66,13 +66,15 @@ Create `ai-cli.config.ts` in your project root:
 import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
-  baseBranch: 'main',
-  codeReviewDiffExcludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
-  reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',
+  reviewCodeChanges: {
+    baseBranch: 'main',
+    codeReviewDiffExcludePatterns: ['pnpm-lock.yaml', '**/*.svg', '**/*.test.ts'],
+    reviewInstructionsPath: '.github/PR_REVIEW_AGENT.md',
+  },
 });
 ```
 
-### Configuration Options
+### Configuration Options (`reviewCodeChanges`)
 
 | Option | Description |
 |--------|-------------|
@@ -90,8 +92,10 @@ The `baseBranch` option can be a function that receives the current branch name:
 
 ```typescript
 export default defineConfig({
-  baseBranch: (currentBranch) =>
-    currentBranch.startsWith('release/') ? 'main' : 'develop',
+  reviewCodeChanges: {
+    baseBranch: (currentBranch) =>
+      currentBranch.startsWith('release/') ? 'main' : 'develop',
+  },
 });
 ```
 
@@ -105,26 +109,28 @@ import { openai } from '@ai-sdk/openai';
 import { google } from '@ai-sdk/google';
 
 export default defineConfig({
-  setup: [
-    {
-      label: 'myCustomSetup',
-      reviewers: [
-        { label: 'GPT-5', model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
-        { model: google('gemini-2.5-pro') },
-      ],
-      validator: { model: openai('gpt-5.2') },
-      formatter: { model: openai('gpt-5-mini') },
-    },
-    {
-      label: 'fastReview',
-      reviewers: [{ model: openai('gpt-5-mini') }],
-      // validator and formatter use defaults
-    },
-  ],
+  reviewCodeChanges: {
+    setup: [
+      {
+        label: 'myCustomSetup',
+        reviewers: [
+          { label: 'GPT-5', model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
+          { model: google('gemini-2.5-pro') },
+        ],
+        validator: { model: openai('gpt-5.2') },
+        formatter: { model: openai('gpt-5-mini') },
+      },
+      {
+        label: 'fastReview',
+        reviewers: [{ model: openai('gpt-5-mini') }],
+        // validator and formatter use defaults
+      },
+    ],
 
-  // Defaults for custom setups that don't specify validator/formatter
-  defaultValidator: { model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
-  defaultFormatter: { model: openai('gpt-5-mini') },
+    // Defaults for custom setups that don't specify validator/formatter
+    defaultValidator: { model: openai('gpt-5.2'), providerOptions: { reasoningEffort: 'high' } },
+    defaultFormatter: { model: openai('gpt-5-mini') },
+  },
 });
 ```
 

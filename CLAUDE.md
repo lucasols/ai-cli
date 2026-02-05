@@ -70,10 +70,11 @@ Projects using this CLI create `ai-cli.config.ts`:
 import { defineConfig } from 'ai-cmds';
 
 export default defineConfig({
-  baseBranch: 'main',
-  excludePatterns: ['*.lock'],
-  reviewInstructionsPath: './REVIEW_GUIDELINES.md',
-  defaultSetup: 'light',
+  reviewCodeChanges: {
+    baseBranch: 'main',
+    codeReviewDiffExcludePatterns: ['*.lock'],
+    reviewInstructionsPath: './REVIEW_GUIDELINES.md',
+  },
 });
 ```
 

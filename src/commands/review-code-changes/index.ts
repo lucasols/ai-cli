@@ -239,7 +239,8 @@ export const reviewCodeChangesCommand = createCmd({
     { args: ['--setup', 'light'], description: 'Use light review setup' },
   ],
   run: async ({ setup, scope, pr, baseBranch }) => {
-    const config = await loadConfig();
+    const rootConfig = await loadConfig();
+    const config = rootConfig.reviewCodeChanges ?? {};
 
     // Resolve setup from CLI arg or interactive selection
     let setupConfig: ReviewSetupConfig | undefined = resolveSetup(

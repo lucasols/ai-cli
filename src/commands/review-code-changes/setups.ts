@@ -1,7 +1,7 @@
 import { openai, type OpenAIResponsesProviderOptions } from '@ai-sdk/openai';
 import type {
-  Config,
   CustomModelConfig,
+  ReviewCodeChangesConfig,
   SetupConfig,
 } from '../../lib/config.ts';
 import type { Model, ReviewSetup } from './types.ts';
@@ -80,7 +80,7 @@ function toModel(cfg: CustomModelConfig): Model {
 
 function convertCustomSetup(
   setup: SetupConfig,
-  config: Config,
+  config: ReviewCodeChangesConfig,
 ): ReviewSetupConfig {
   const reviewers: Model[] = setup.reviewers.map(toModel);
 
@@ -104,7 +104,7 @@ function convertCustomSetup(
  * Returns undefined if no setup is specified (to trigger interactive selection).
  */
 export function resolveSetup(
-  config: Config,
+  config: ReviewCodeChangesConfig,
   cliSetup?: string,
 ): ReviewSetupConfig | undefined {
   if (!cliSetup) {
@@ -128,7 +128,7 @@ export function resolveSetup(
 /**
  * Get all available setup labels (built-in + custom).
  */
-export function getAvailableSetups(config: Config): string[] {
+export function getAvailableSetups(config: ReviewCodeChangesConfig): string[] {
   const builtIn = Object.keys(reviewSetupConfigs);
   const custom = config.setup?.map((s) => s.label) ?? [];
   return [...builtIn, ...custom];

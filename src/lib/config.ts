@@ -29,7 +29,7 @@ export type SetupConfig = {
   formatter?: CustomModelConfig;
 };
 
-export type Config = {
+export type ReviewCodeChangesConfig = {
   /**
    * Base branch for comparing changes.
    * Can be a static string or a function that receives the current branch name.
@@ -79,6 +79,13 @@ export type Config = {
   logsDir?: string;
 };
 
+export type Config = {
+  /**
+   * Configuration for the review-code-changes command.
+   */
+  reviewCodeChanges?: ReviewCodeChangesConfig;
+};
+
 export function defineConfig(config: Config): Config {
   return config;
 }
@@ -116,7 +123,7 @@ export function clearConfigCache(): void {
  * Resolves the base branch from config, supporting both string and function forms.
  */
 export function resolveBaseBranch(
-  configBaseBranch: Config['baseBranch'],
+  configBaseBranch: ReviewCodeChangesConfig['baseBranch'],
   currentBranch: string,
   defaultBranch = 'main',
 ): string {
@@ -129,7 +136,9 @@ export function resolveBaseBranch(
 /**
  * Gets the code review diff exclude patterns from config.
  */
-export function getExcludePatterns(config: Config): string[] | undefined {
+export function getExcludePatterns(
+  config: ReviewCodeChangesConfig,
+): string[] | undefined {
   return config.codeReviewDiffExcludePatterns;
 }
 
@@ -137,6 +146,8 @@ export function getExcludePatterns(config: Config): string[] | undefined {
  * Resolves the logs directory from config or environment variable.
  * Config value takes precedence over env var.
  */
-export function resolveLogsDir(config: Config): string | undefined {
+export function resolveLogsDir(
+  config: ReviewCodeChangesConfig,
+): string | undefined {
   return config.logsDir ?? process.env.AI_CLI_LOGS_DIR;
 }

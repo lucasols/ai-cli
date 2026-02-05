@@ -8,13 +8,17 @@ describe('config', () => {
 
   it('defineConfig returns the config unchanged', () => {
     const config = defineConfig({
-      baseBranch: 'main',
-      codeReviewDiffExcludePatterns: ['*.md'],
+      reviewCodeChanges: {
+        baseBranch: 'main',
+        codeReviewDiffExcludePatterns: ['*.md'],
+      },
     });
 
     expect(config).toEqual({
-      baseBranch: 'main',
-      codeReviewDiffExcludePatterns: ['*.md'],
+      reviewCodeChanges: {
+        baseBranch: 'main',
+        codeReviewDiffExcludePatterns: ['*.md'],
+      },
     });
   });
 
