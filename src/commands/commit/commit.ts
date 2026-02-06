@@ -129,7 +129,11 @@ export const commitCommand = createCmd({
     console.log(`📝 Diff: ${formatNum(diffTokens)} tokens`);
     const truncatedDiff = truncateDiff(diff, maxTokens);
 
-    let message = await generateCommitMessage(truncatedDiff, config);
+    let message = await generateCommitMessage(
+      filesToReview.slice(0, 30),
+      truncatedDiff,
+      config,
+    );
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     while (true) {
@@ -174,7 +178,11 @@ export const commitCommand = createCmd({
       }
 
       if (action === 'regenerate') {
-        message = await generateCommitMessage(truncatedDiff, config);
+        message = await generateCommitMessage(
+          filesToReview.slice(0, 30),
+          truncatedDiff,
+          config,
+        );
         continue;
       }
 

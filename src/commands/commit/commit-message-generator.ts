@@ -39,16 +39,23 @@ Guidelines for the body (optional):
 - Wrap lines at 72 characters
 - Do not repeat the subject line`;
 
-function buildUserPrompt(diff: string, instructions?: string): string {
+function buildUserPrompt(
+  changedFiles: string[],
+  diff: string,
+  instructions?: string,
+): string {
   let prompt = `Generate a commit message for the following staged changes.
 
-Diff:
-\`\`\`diff
+<changed-files>
+${changedFiles.map((f) => `- ${f}`).join('\n')}
+</changed-files>
+
+<diff>
 ${diff}
-\`\`\``;
+</diff>`;
 
   if (instructions) {
-    prompt += `\n\nAdditional instructions:\n${instructions}`;
+    prompt += `\n\n<instructions>\n${instructions}\n</instructions>`;
   }
 
   return prompt;
@@ -100,10 +107,11 @@ async function resolveModel(
 }
 
 export async function generateCommitMessage(
+  changedFiles: string[],
   diff: string,
   config: CommitConfig,
 ): Promise<string> {
-  const userPrompt = buildUserPrompt(diff, config.instructions);
+  const userPrompt = buildUserPrompt(changedFiles, diff, config.instructions);
 
   const primary = await resolveModel(config.primaryModel, 'google');
 
