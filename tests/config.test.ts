@@ -71,7 +71,7 @@ describe('loadDotEnv', () => {
   });
 });
 
-describe('global env fallback', () => {
+describe('global env', () => {
   afterEach(() => {
     clearConfigCache();
     vi.restoreAllMocks();
@@ -98,22 +98,22 @@ describe('global env fallback', () => {
     delete process.env.TEST_GLOBAL_FALLBACK_VAR;
   });
 
-  it('skips global env when local .env exists', async () => {
-    const testDir = join(process.cwd(), 'temp-test-global-skip');
+  it('local .env overrides global env', async () => {
+    const testDir = join(process.cwd(), 'temp-test-global-override');
     rmSync(testDir, { recursive: true, force: true });
     mkdirSync(testDir, { recursive: true });
-
-    writeFileSync(
-      join(testDir, '.env'),
-      'TEST_LOCAL_ONLY_VAR=local_value\n',
-    );
 
     const globalEnvDir = join(testDir, 'global-config');
     mkdirSync(globalEnvDir, { recursive: true });
     const globalEnvPath = join(globalEnvDir, '.env');
     writeFileSync(
       globalEnvPath,
-      'TEST_GLOBAL_SHOULD_NOT_LOAD=should_not_load\n',
+      'TEST_SHARED_VAR=global_value\nTEST_GLOBAL_ONLY_VAR=from_global\n',
+    );
+
+    writeFileSync(
+      join(testDir, '.env'),
+      'TEST_SHARED_VAR=local_value\nTEST_LOCAL_ONLY_VAR=from_local\n',
     );
 
     vi.spyOn(globalEnv, 'getGlobalEnvPath').mockReturnValue(globalEnvPath);
@@ -121,10 +121,13 @@ describe('global env fallback', () => {
     clearConfigCache();
     await loadConfig(testDir);
 
-    expect(process.env.TEST_LOCAL_ONLY_VAR).toBe('local_value');
-    expect(process.env.TEST_GLOBAL_SHOULD_NOT_LOAD).toBeUndefined();
+    expect(process.env.TEST_SHARED_VAR).toBe('local_value');
+    expect(process.env.TEST_GLOBAL_ONLY_VAR).toBe('from_global');
+    expect(process.env.TEST_LOCAL_ONLY_VAR).toBe('from_local');
 
     rmSync(testDir, { recursive: true, force: true });
+    delete process.env.TEST_SHARED_VAR;
+    delete process.env.TEST_GLOBAL_ONLY_VAR;
     delete process.env.TEST_LOCAL_ONLY_VAR;
   });
 });

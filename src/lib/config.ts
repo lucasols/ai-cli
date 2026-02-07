@@ -314,12 +314,9 @@ export async function loadConfig(cwd: string = process.cwd()): Promise<Config> {
   const configPath = join(cwd, 'ai-cmds.config.ts');
   const defaultEnvPath = join(cwd, '.env');
 
-  // Load default .env file first so config module can access env vars.
-  // Fall back to global env when no local .env exists.
-  const localEnvLoaded = loadEnvFile(defaultEnvPath);
-  if (!localEnvLoaded) {
-    loadEnvFile(getGlobalEnvPath());
-  }
+  // Load global env first as base, then local .env overrides it
+  loadEnvFile(getGlobalEnvPath());
+  loadEnvFile(defaultEnvPath, true);
 
   if (!existsSync(configPath)) {
     cachedConfig = {};

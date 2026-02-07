@@ -193,7 +193,7 @@ ai-cmds set-global-envs
 **Behavior:**
 - Creates `~/.config/ai-cmds/.env` with commented-out placeholders for `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, and `AI_CLI_LOGS_DIR`
 - If the file already exists, reports its location without overwriting
-- The global `.env` is loaded as a fallback when no local `.env` file exists in the project root
+- The global `.env` is always loaded first, then the local `.env` overrides any overlapping variables
 
 ## Review Setups
 
@@ -284,7 +284,7 @@ export default defineConfig({
 });
 ```
 
-By default, `.env` is loaded automatically before the config file is imported, allowing you to reference environment variables in your config. When no local `.env` file exists, the CLI falls back to the global env file at `~/.config/ai-cmds/.env` (see [`set-global-envs`](#set-global-envs---global-api-key-setup)).
+By default, the global `~/.config/ai-cmds/.env` is loaded first (see [`set-global-envs`](#set-global-envs---global-api-key-setup)), then the local `.env` is loaded and overrides any overlapping variables. This allows you to set shared API keys globally while still customizing per-project.
 
 ### Configuration Options
 
