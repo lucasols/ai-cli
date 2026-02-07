@@ -1,6 +1,6 @@
 import { generateObject, type LanguageModel } from 'ai';
-import { z } from 'zod';
 import { estimateTokenCount, sliceByTokens } from 'tokenx';
+import { z } from 'zod';
 import type { CreatePRConfig, GeneratedPRContent } from './types.ts';
 
 const DEFAULT_MAX_DIFF_TOKENS = 50000;
@@ -108,15 +108,15 @@ export async function getModel(
   if (provider === 'openai') {
     const { openai } = await import('@ai-sdk/openai');
     return {
-      model: openai('gpt-4o-mini'),
-      label: 'gpt-4o-mini',
+      model: openai('gpt-5-mini'),
+      label: 'gpt-5-mini',
     };
   }
 
   const { google } = await import('@ai-sdk/google');
   return {
-    model: google('gemini-2.0-flash'),
-    label: 'gemini-2.0-flash',
+    model: google('gemini-2.5-flash'),
+    label: 'gemini-2.5-flash',
   };
 }
 
