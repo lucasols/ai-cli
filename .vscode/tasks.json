@@ -12,7 +12,10 @@
       "label": "bump version and deploy",
       "type": "shell",
       "command": "pnpm exec pkg-manager p",
-      "problemMatcher": []
+      "problemMatcher": [],
+      "presentation": {
+        "focus": true
+      }
     },
     {
       "label": "run lint",
