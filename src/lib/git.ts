@@ -123,28 +123,28 @@ export async function getLocalBranches(): Promise<string[]> {
 }
 
 export async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
-  const remoteUrl = await getRemoteUrl();
+  const json = await runCmdSilentUnwrap([
+    'gh',
+    'repo',
+    'view',
+    '--json',
+    'owner,name',
+  ]);
 
-  // Handle both SSH and HTTPS formats
-  // SSH: git@github.com:owner/repo.git
-  // HTTPS: https://github.com/owner/repo.git
-  const sshMatch = remoteUrl.match(/git@github\.com:([^/]+)\/(.+?)(?:\.git)?$/);
-  const httpsMatch = remoteUrl.match(
-    /https:\/\/github\.com\/([^/]+)\/(.+?)(?:\.git)?$/,
-  );
+  const parsed: unknown = JSON.parse(json);
 
-  const match = sshMatch ?? httpsMatch;
-
-  if (!match || !match[1] || !match[2]) {
-    throw new Error(
-      `Could not parse GitHub repo from remote URL: ${remoteUrl}`,
-    );
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    !('owner' in parsed) ||
+    !('name' in parsed)
+  ) {
+    throw new Error(`Unexpected gh repo view output: ${json}`);
   }
 
-  return {
-    owner: match[1],
-    repo: match[2].replace(/\.git$/, ''),
-  };
+  const { owner, name } = parsed as { owner: { login: string }; name: string };
+
+  return { owner: owner.login, repo: name };
 }
 
 export async function getUnstagedDiff(
