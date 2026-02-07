@@ -325,14 +325,10 @@ export async function checkExistingPR(
   branch: string,
 ): Promise<ExistingPR | null> {
   try {
-    const result = await runCmdSilentUnwrap([
-      'gh',
-      'pr',
-      'view',
-      branch,
-      '--json',
-      'state,url,number',
-    ]);
+    const result = await runCmdUnwrap(
+      ['gh', 'pr', 'view', branch, '--json', 'state,url,number'],
+      { silent: true, noColor: true },
+    );
     const parsed = existingPRSchema.parse(JSON.parse(result));
     return parsed;
   } catch {

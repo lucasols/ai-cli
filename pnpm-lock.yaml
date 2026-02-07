@@ -20,6 +20,9 @@ importers:
       '@ls-stack/cli':
         specifier: ^0.1.0
         version: 0.1.0(@types/node@24.3.0)
+      '@ls-stack/node-utils':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@ls-stack/utils':
         specifier: ^3.68.0
         version: 3.68.0
@@ -524,6 +527,10 @@ packages:
     engines: {node: '>=20.0.0'}
     peerDependencies:
       eslint: ^9.9.1
+
+  '@ls-stack/node-utils@0.2.0':
+    resolution: {integrity: sha512-NqVtO/F9SfHBSWXgc5FmC3KDnkcHNfrXIs7yzeCeVkduZYWsUscWMblK4eTmLvbGZYsmtscEtEiL/RijJJy1cw==}
+    engines: {node: '>=20.0.0'}
 
   '@ls-stack/pkg-manager@0.2.1':
     resolution: {integrity: sha512-W0XGivh6/bj1UGQS/g+n5sTuM4mXIvf6RcKhmgF/6me1Mx7UzsAWKFnl+i5IPkBLsrgkV9VCzcVfq8XmSZrt8w==}
@@ -2342,6 +2349,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
+
+  '@ls-stack/node-utils@0.2.0': {}
 
   '@ls-stack/pkg-manager@0.2.1(@types/node@24.3.0)':
     dependencies:

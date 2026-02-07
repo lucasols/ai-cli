@@ -1,5 +1,9 @@
 import { execSync } from 'child_process';
-import { runCmdSilentUnwrap, runCmdUnwrap } from './shell.ts';
+import {
+  runCmd,
+  runCmdSilentUnwrap,
+  runCmdUnwrap,
+} from '@ls-stack/node-utils/runShellCmd';
 
 export function getCurrentBranch(): string {
   return execSync('git rev-parse --abbrev-ref HEAD').toString().trim();
@@ -38,7 +42,7 @@ export async function getDiffToBranch(
     }
   }
 
-  return runCmdUnwrap(gitArgs, { silent });
+  return runCmdUnwrap(null, gitArgs, { silent });
 }
 
 export async function getStagedDiff(
@@ -69,7 +73,7 @@ export async function getStagedDiff(
     }
   }
 
-  return runCmdUnwrap(gitArgs, { silent });
+  return runCmdUnwrap(null, gitArgs, { silent });
 }
 
 export async function getChangedFiles(baseBranch: string): Promise<string[]> {
@@ -95,9 +99,15 @@ export async function getStagedFiles(): Promise<string[]> {
 }
 
 export async function fetchBranch(branch: string): Promise<void> {
-  await runCmdUnwrap(['git', 'fetch', 'origin', `${branch}:${branch}`], {
-    silent: true,
-  });
+  const result = await runCmd(
+    null,
+    ['git', 'fetch', 'origin', `${branch}:${branch}`],
+    { silent: true },
+  );
+
+  if (result.error) {
+    throw new Error(result.stderr || `Failed to fetch branch ${branch}`);
+  }
 }
 
 export async function getCommitHash(): Promise<string> {
@@ -123,15 +133,17 @@ export async function getLocalBranches(): Promise<string[]> {
 }
 
 export async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
-  const json = await runCmdSilentUnwrap([
-    'gh',
-    'repo',
-    'view',
-    '--json',
-    'owner,name',
-  ]);
+  const result = await runCmd(
+    null,
+    ['gh', 'repo', 'view', '--json', 'owner,name'],
+    { silent: true, noCiColorForce: true },
+  );
 
-  const parsed: unknown = JSON.parse(json);
+  if (result.error) {
+    throw new Error(result.stderr || 'Failed to get repo info');
+  }
+
+  const parsed: unknown = JSON.parse(result.stdout);
 
   if (
     typeof parsed !== 'object' ||
@@ -139,7 +151,7 @@ export async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
     !('owner' in parsed) ||
     !('name' in parsed)
   ) {
-    throw new Error(`Unexpected gh repo view output: ${json}`);
+    throw new Error(`Unexpected gh repo view output: ${result.stdout}`);
   }
 
   const { owner, name } = parsed as { owner: { login: string }; name: string };
@@ -161,7 +173,7 @@ export async function getUnstagedDiff(
     gitArgs.push('--', ...includeFiles);
   }
 
-  return runCmdUnwrap(gitArgs, { silent });
+  return runCmdUnwrap(null, gitArgs, { silent });
 }
 
 export async function getChangedFilesUnstaged(): Promise<string[]> {
@@ -185,11 +197,11 @@ export async function getChangedFilesUnstaged(): Promise<string[]> {
 }
 
 export async function stageAll(): Promise<void> {
-  await runCmdUnwrap(['git', 'add', '-A'], { silent: true });
+  await runCmdUnwrap(null, ['git', 'add', '-A'], { silent: true });
 }
 
 export async function commit(message: string): Promise<string> {
-  return runCmdUnwrap(['git', 'commit', '-m', message], { silent: true });
+  return runCmdUnwrap(null, ['git', 'commit', '-m', message], { silent: true });
 }
 
 export async function hasChanges(): Promise<boolean> {
